@@ -10,8 +10,11 @@ fun main(args: Array<String>) {
     val rand = Random(123)
     val V = TTVector.rand(modes, ranks, max=1.0, random = rand)
     val M = TTSquareMatrix.rand(modes, ranks, max = 2.0, random = rand)
-    val A = M+M.diag()*10.0
-    TTJacobi(A, A*V, 0.1*V.tt.frobenius(), 0.001)
+    val A = M+M.diag()*100.0
+    val x = TTJacobi(A, A*V, 0.0001*(A*V).tt.frobenius(), 0.001)
+    println()
+    println("Final error:")
+    (V-x).printElements(numDecimals = 4)
 }
 
 private fun ttTest() {

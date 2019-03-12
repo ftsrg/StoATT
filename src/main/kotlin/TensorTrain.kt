@@ -113,6 +113,12 @@ class TTVector(var tt: TensorTrain) {
     operator fun times(d: Double): TTVector {
         return TTVector(this.tt*d)
     }
+
+    fun printElements(sep: String = " ", numDecimals: Int = 2) {
+        for (i in 0 until numElements) {
+            print("${"%.${numDecimals}f".format(get(i))}$sep")
+        }
+    }
 }
 
 class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
@@ -192,6 +198,10 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
         return tt.get(*indices)
     }
 
+    operator fun times(M: TTSquareMatrix): TTSquareMatrix {
+        TODO()
+    }
+
     operator fun times(v: TTVector): TTVector {
         assert(this.tt.cores.size == v.tt.cores.size)
         { "The TT-vector and the TT-matrix must have the same number of cores! " +
@@ -219,6 +229,14 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
         return TTVector(TensorTrain(cores))
     }
 
+    operator fun times(d: Double): TTSquareMatrix {
+        return TTSquareMatrix(d*tt, modes)
+    }
+
+    operator fun timesAssign(d: Double) {
+        tt.timesAssign(d)
+    }
+
     operator fun plus(M: TTSquareMatrix): TTSquareMatrix {
         return TTSquareMatrix(tt+M.tt, modes)
     }
@@ -237,14 +255,6 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
 
     operator fun minusAssign(M: TTSquareMatrix) {
         this += (M * (-1.0))
-    }
-
-    operator fun times(d: Double): TTSquareMatrix {
-        return TTSquareMatrix(d*tt, modes)
-    }
-
-    operator fun timesAssign(d: Double) {
-        tt.timesAssign(d)
     }
 
     fun copy(): TTSquareMatrix {
@@ -276,6 +286,15 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
             resCores.add(newCore)
         }
         return TTVector(TensorTrain(resCores))
+    }
+
+    fun printElements(colSep: String = " ", rowSep: String = "\n", numDecimals: Int = 2) {
+        for (r in 0 until numRows) {
+            for (c in 0 until numCols) {
+                print("${"%.${numDecimals}f".format(get(r,c))}$colSep")
+            }
+            print(rowSep)
+        }
     }
 }
 
