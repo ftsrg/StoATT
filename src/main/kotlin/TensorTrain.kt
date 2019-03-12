@@ -63,11 +63,10 @@ class TTVector(var tt: TensorTrain) {
             return TTVector(TensorTrain(cores))
         }
 
-        fun rand(modes: Array<Int>, ranks: Array<Int>, min: Double = 0.0, max: Double = 10.0): TTVector {
+        fun rand(modes: Array<Int>, ranks: Array<Int>, min: Double = 0.0, max: Double = 10.0, random: Random = Random()): TTVector {
             assert(modes.size == ranks.size-1)
             assert(ranks.first() == 1 && ranks.last() == 1)
             val cores = ArrayList<CoreTensor>(modes.size)
-            val random = Random()
             repeat(modes.size) { k ->
                 val newCore = CoreTensor(modes[k], ranks[k], ranks[k + 1])
                 repeat(newCore.modeLength) { m ->
@@ -78,16 +77,17 @@ class TTVector(var tt: TensorTrain) {
             return TTVector(TensorTrain(cores))
         }
 
-        fun fromBlackBox(valFun: (Int) -> Double): TTMatrix {
+        fun fromBlackBox(valFun: (Int) -> Double): TTSquareMatrix {
             TODO()
         }
 
-        fun fromFull(original: SimpleMatrix): TTMatrix {
+        fun fromFull(original: SimpleMatrix): TTSquareMatrix {
             TODO()
         }
     }
 
     val numElements = tt.cores.map { it.modeLength }.product()
+    val modes = tt.cores.map { it.modeLength }.toTypedArray()
 
     operator fun get(element: Int): Double {
         val indices = arrayListOf<Int>()
@@ -115,40 +115,36 @@ class TTVector(var tt: TensorTrain) {
     }
 }
 
-class TTMatrix(var tt: TensorTrain, val rowModes: Array<Int>, val colModes: Array<Int>) {
+class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
 
     companion object {
-        fun zeros(rowModes: Array<Int>, colModes: Array<Int>): TTMatrix {
-            assert(rowModes.size == colModes.size)
-            val cores = ArrayList<CoreTensor>(rowModes.size)
-            for(i in 0 until rowModes.size) {
-                cores.add(CoreTensor(rowModes[i]*colModes[i], 1, 1))
+        fun zeros(modes: Array<Int>): TTSquareMatrix {
+            val cores = ArrayList<CoreTensor>(modes.size)
+            for(i in 0 until modes.size) {
+                cores.add(CoreTensor(modes[i]*modes[i], 1, 1))
             }
-            return TTMatrix(TensorTrain(cores), rowModes, colModes)
+            return TTSquareMatrix(TensorTrain(cores), modes)
         }
 
-
-        fun rand(rowModes: Array<Int>, colModes: Array<Int>, ranks: Array<Int>, min: Double = 0.0, max: Double = 10.0): TTMatrix {
-            assert(rowModes.size ==  colModes.size)
-            assert(rowModes.size == ranks.size-1)
+        fun rand(modes: Array<Int>, ranks: Array<Int>, min: Double = 0.0, max: Double = 10.0, random: Random = Random()): TTSquareMatrix {
+            assert(modes.size == ranks.size-1)
             assert(ranks.first() == 1 && ranks.last() == 1)
-            val cores = ArrayList<CoreTensor>(rowModes.size)
-            val random = Random()
-            repeat(rowModes.size) { k ->
-                val newCore = CoreTensor(rowModes[k] * colModes[k], ranks[k], ranks[k + 1])
+            val cores = ArrayList<CoreTensor>(modes.size)
+            repeat(modes.size) { k ->
+                val newCore = CoreTensor(modes[k] * modes[k], ranks[k], ranks[k + 1])
                 repeat(newCore.modeLength) { m ->
                     newCore[m] = random_DDRM(newCore.rows, newCore.cols, min, max, random)
                 }
                 cores.add(newCore)
             }
-            return TTMatrix(TensorTrain(cores), rowModes, colModes)
+            return TTSquareMatrix(TensorTrain(cores), modes)
         }
 
         /**
          * Returns an identity matrix in TT format with the give mode sizes as both row and column modes
          */
-        fun eye(modes: Array<Int>): TTMatrix {
-            val res = zeros(modes, modes)
+        fun eye(modes: Array<Int>): TTSquareMatrix {
+            val res = zeros(modes)
             for ((coreIdx, m) in modes.withIndex()) {
                 for (i in 0 until m) {
                     res.tt.cores[coreIdx][i*m+i] = mat[r[1.0]]
@@ -156,31 +152,43 @@ class TTMatrix(var tt: TensorTrain, val rowModes: Array<Int>, val colModes: Arra
             }
             return res
         }
+
+        fun diag(vect: TTVector): TTSquareMatrix {
+            val zeroCores = arrayListOf<CoreTensor>()
+            for (core in vect.tt.cores) {
+                zeroCores.add(CoreTensor(core.modeLength*core.modeLength, core.rows, core.cols))
+            }
+            val res = TTSquareMatrix(TensorTrain(zeroCores), vect.modes)
+            for ((coreIdx, m) in vect.modes.withIndex()) {
+                for (i in 0 until m) {
+                    res.tt.cores[coreIdx][i*m+i] = vect.tt.cores[coreIdx][i].copy()
+                }
+            }
+            return res
+        }
     }
 
-    init { assert(rowModes.size == colModes.size)}
-
-    val numRows = rowModes.product()
-    val numCols = colModes.product()
+    val numRows = modes.product()
+    val numCols = modes.product()
 
     operator fun get(row: Int, col: Int): Double {
         val rowIndices = arrayListOf<Int>()
         val colIndices = arrayListOf<Int>()
         var tempDiv = numRows
         var tempElem = row
-        for (mode in rowModes) {
+        for (mode in modes) {
             tempDiv /= mode
             rowIndices.add(tempElem/tempDiv)
             tempElem %= tempDiv
         }
         tempElem = col
         tempDiv = numCols
-        for (mode in colModes) {
+        for (mode in modes) {
             tempDiv /= mode
             colIndices.add(tempElem/tempDiv)
             tempElem %= tempDiv
         }
-        val indices = IntArray(rowModes.size) {idx -> rowIndices[idx]*colModes[idx]+colIndices[idx]}
+        val indices = IntArray(modes.size) { idx -> rowIndices[idx]*modes[idx]+colIndices[idx]}
         return tt.get(*indices)
     }
 
@@ -192,17 +200,17 @@ class TTMatrix(var tt: TensorTrain, val rowModes: Array<Int>, val colModes: Arra
         val cores = arrayListOf<CoreTensor>()
 
         for ((k, vectCore) in v.tt.cores.withIndex()) {
-            assert(vectCore.modeLength == colModes[k])
+            assert(vectCore.modeLength == modes[k])
             { "The TT-vector must have the same modes as the column modes of the TT-matrix! " +
                     "Index of first non-matching mode: $k " +
                     "Vector mode length: ${vectCore.modeLength} " +
-                    "Matrix column mode length: ${colModes[k]}" }
+                    "Matrix column mode length: ${modes[k]}" }
             val matCore = tt.cores[k]
-            val newCore = CoreTensor(rowModes[k], matCore.rows*vectCore.rows, matCore.cols*vectCore.cols)
+            val newCore = CoreTensor(modes[k], matCore.rows*vectCore.rows, matCore.cols*vectCore.cols)
 
             for(ik in 0 until newCore.modeLength) {
                 for(jk in 0 until vectCore.modeLength) {
-                    newCore.data[ik] += matCore[ik*colModes[k]+jk].kron(vectCore[jk])
+                    newCore.data[ik] += matCore[ik*modes[k]+jk].kron(vectCore[jk])
                 }
             }
             cores.add(newCore)
@@ -211,22 +219,63 @@ class TTMatrix(var tt: TensorTrain, val rowModes: Array<Int>, val colModes: Arra
         return TTVector(TensorTrain(cores))
     }
 
-    fun copy(): TTMatrix {
-        return TTMatrix(tt.copy(), rowModes, colModes)
+    operator fun plus(M: TTSquareMatrix): TTSquareMatrix {
+        return TTSquareMatrix(tt+M.tt, modes)
     }
 
-    fun diag(): TTMatrix {
+    operator fun plusAssign(M: TTSquareMatrix) {
+        tt.plusAssign(M.tt)
+    }
+
+    operator fun minus(M: TTSquareMatrix): TTSquareMatrix {
+        return this + (M * -1.0)
+    }
+
+    operator fun unaryMinus(): TTSquareMatrix {
+        return this*(-1.0)
+    }
+
+    operator fun minusAssign(M: TTSquareMatrix) {
+        this += (M * (-1.0))
+    }
+
+    operator fun times(d: Double): TTSquareMatrix {
+        return TTSquareMatrix(d*tt, modes)
+    }
+
+    operator fun timesAssign(d: Double) {
+        tt.timesAssign(d)
+    }
+
+    fun copy(): TTSquareMatrix {
+        return TTSquareMatrix(tt.copy(), modes)
+    }
+
+    fun diag(): TTSquareMatrix {
         val zeroCores = arrayListOf<CoreTensor>()
         for (core in this.tt.cores) {
             zeroCores.add(CoreTensor(core.modeLength, core.rows, core.cols))
         }
-        val res = TTMatrix(TensorTrain(zeroCores), rowModes, colModes)
-        for ((coreIdx, m) in rowModes.withIndex()) {
+        val res = TTSquareMatrix(TensorTrain(zeroCores), modes)
+        for ((coreIdx, m) in modes.withIndex()) {
             for (i in 0 until m) {
                 res.tt.cores[coreIdx][i*m+i] = this.tt.cores[coreIdx][i*m+i].copy()
             }
         }
         return res
+    }
+
+    fun diagVect(): TTVector {
+        val resCores = arrayListOf<CoreTensor>()
+        for ((coreIdx, m) in modes.withIndex()) {
+            val core = this.tt.cores[coreIdx]
+            val newCore = CoreTensor(m, core.rows, core.cols)
+            for (i in 0 until m) {
+                newCore[i] = core[i*m+i].copy()
+            }
+            resCores.add(newCore)
+        }
+        return TTVector(TensorTrain(resCores))
     }
 }
 
@@ -265,7 +314,7 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
         for(i in 0 until firstCoreThis.modeLength) {
             res.cores[0].data[i][0,0] = firstCoreThis.data[i]
             if(firstCoreThat.cols > 0)
-                res.cores[0].data[i][0, firstCoreThis.cols] =  firstCoreThat.data[i]
+                res.cores[0].data[i][0, firstCoreThis.cols] = firstCoreThat.data[i]
         }
 
         //calculate middle cores
@@ -281,9 +330,9 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
                     currCoreThis.cols + currCoreThat.cols)
 
             for(j in 0 until currCoreThis.modeLength) {
-                newCore.data[i][0,0] = currCoreThis.data[j]
+                newCore.data[j][0,0] = currCoreThis.data[j]
                 if(currCoreThat.cols > 0 && currCoreThat.rows > 0)
-                    newCore.data[i][currCoreThis.rows, currCoreThis.cols] = currCoreThat.data[j]
+                    newCore.data[j][currCoreThis.rows, currCoreThis.cols] = currCoreThat.data[j]
             }
             res.addCore(newCore)
         }
@@ -345,11 +394,15 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
             for(j in 0 until Gk.modeLength) {
                 Gk[j] = Q[0..Q.numRows(), Gk.cols*j..Gk.cols*(j+1)]
             }
+            Gk.rows = Gk.data[0].numRows()
+            Gk.cols = Gk.data[0].numCols()
 
             val Gkprev = cores[i-1]
             for(j in 0 until Gkprev.modeLength) {
                 Gkprev[j] *= R
             }
+            Gkprev.rows = Gkprev.data[0].numRows()
+            Gkprev.cols = Gkprev.data[0].numCols()
         }
 
         //compression
@@ -401,8 +454,25 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
             val thisCore = cores[i]
             val zero = SimpleMatrix(1, thisCore.cols * otherCore.cols)
             v = thisCore.data.foldIndexed(zero) {
-                //TODO: optimize product with kronecker-structured matrix (res[kth B.cols-long part]=sum(A[j,k]*(v[jth B.rows-long part]*B)))
-                idx, acc, matA -> acc + v * matA.kron(otherCore[idx])
+                //TODO: optimize product with kronecker-structured matrix
+                idx, acc, matA ->
+
+                val prod = SimpleMatrix(1, acc.numCols())
+
+                val B = otherCore[idx]
+                val Vs = Array(matA.numRows()) {
+                    val vn = v.cols(it*B.numRows(), (it+1)*B.numRows())
+                    return@Array vn.times(B)
+                }
+
+                for (c in 0 until matA.numCols()) {
+                    for (r in 0 until matA.numRows()) {
+                        prod[0, c*B.numCols()] = prod.cols(c*B.numCols(), (c+1)*B.numCols()) + matA[r,c]*Vs[r]
+                    }
+                }
+
+                return@foldIndexed acc + prod
+//                return@foldIndexed acc + v * matA.kron(otherCore[idx])
             }
         }
         assert(v.numElements == 1)
@@ -414,6 +484,8 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
         val res = this.copy()
         for ((coreIdx, core) in res.cores.withIndex()) {
             val otherCore = other.cores[coreIdx]
+            core.rows *= otherCore.rows
+            core.cols *= otherCore.cols
             for (matIdx in core.data.indices) {
                 core[matIdx] = core[matIdx].kron(otherCore[matIdx])
             }

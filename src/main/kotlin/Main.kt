@@ -5,11 +5,17 @@ import kotlin.math.sign
 import kotlin.math.sqrt
 
 fun main(args: Array<String>) {
-    println(reGMRESTest())
+    val modes = arrayOf(2, 3, 4)
+    val ranks = arrayOf(1, 3, 3, 1)
+    val rand = Random(123)
+    val V = TTVector.rand(modes, ranks, max=1.0, random = rand)
+    val M = TTSquareMatrix.rand(modes, ranks, max = 2.0, random = rand)
+    val A = M+M.diag()*10.0
+    TTJacobi(A, A*V, 0.1*V.tt.frobenius(), 0.001)
 }
 
 private fun ttTest() {
-    val M = TTMatrix.rand(arrayOf(10, 10, 10, 10), arrayOf(10, 10, 10, 10), arrayOf(1, 10, 10, 10, 1), max = 2.0)
+    val M = TTSquareMatrix.rand(arrayOf(10, 10, 10, 10), arrayOf(10, 10, 10, 10), max = 2.0)
     val originalNorm = M.tt.frobenius()
     println(originalNorm)
     val Mcpy = M.copy()
@@ -101,7 +107,7 @@ fun GMRES(A: SimpleMatrix, b: SimpleMatrix, m: Int,
 
 /*
 //TODO: x0 default better
-fun TT_GMRES(A: TTMatrix, b: TTVector, m: Int,
+fun TT_GMRES(A: TTSquareMatrix, b: TTVector, m: Int,
           x0: TTVector = TTVector.ones(b.tt.cores.map { it.modeLength }.toTypedArray())): SolverResult {
     val r0 = b - A * x0
     val beta = r0.tt.frobenius() //TODO: verify norm
