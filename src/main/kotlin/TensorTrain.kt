@@ -76,14 +76,6 @@ class TTVector(var tt: TensorTrain) {
             }
             return TTVector(TensorTrain(cores))
         }
-
-        fun fromBlackBox(valFun: (Int) -> Double): TTSquareMatrix {
-            TODO()
-        }
-
-        fun fromFull(original: SimpleMatrix): TTSquareMatrix {
-            TODO()
-        }
     }
 
     val numElements = tt.cores.map { it.modeLength }.product()
@@ -106,6 +98,8 @@ class TTVector(var tt: TensorTrain) {
         return TTVector(this.tt+v.tt)
     }
 
+    operator fun plusAssign(v: TTVector) = tt.plusAssign(v.tt)
+
     operator fun minus(v: TTVector): TTVector {
         return this+v*(-1.0)
     }
@@ -114,12 +108,18 @@ class TTVector(var tt: TensorTrain) {
         return TTVector(this.tt*d)
     }
 
+    operator fun times(V: TTVector): Double = tt.scalarProduct(V.tt)
+
     fun printElements(sep: String = " ", numDecimals: Int = 2) {
         for (i in 0 until numElements) {
             print("${"%.${numDecimals}f".format(get(i))}$sep")
         }
     }
+
+    operator fun div(d: Double): TTVector = this * (1.0/d)
 }
+operator fun Double.times(V: TTVector): TTVector = V * this
+
 
 class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
 
