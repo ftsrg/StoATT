@@ -52,34 +52,38 @@ fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: D
     return x
 }
 
-fun TTGMRES(A: TTSquareMatrix, b: TTVector, x0: TTVector, eps: Double): TTVector {
-    val R = arrayListOf(A*x0-b)
-    val beta = R[0].tt.frobenius()
-    val V = arrayListOf(R[0]/beta)
-    val m = 100
+fun TTGMRES(A: TTSquareMatrix, b: TTVector, x0: TTVector, eps: Double, maxIter: Int = 100): TTVector {
+    val res0 = A * x0 - b
+    val R = arrayListOf(res0.norm())
+    val beta = R[0]
+    val V = arrayListOf(res0/beta)
     val h = hashMapOf<Pair<Int,Int>, Double>() //TODO: vmi értelmesebb ehelyett
     lateinit var y: SimpleMatrix
     var r: Double
-    var x = x0
-    for (j in 1..m) {
-        val delta = eps / R[j-1].tt.frobenius()
+    var x = x0.copy()
+    for (j in 1..maxIter) {
+        val delta = eps / R[j-1]
         var w = A * V[j-1]
         w.tt.round(delta)
-        for(i in 1..j){
+        for(i in 0 until j){
             val t = w * V[i]
-            h[Pair(i, j)] = t
+            h[Pair(i, j-1)] = t
             w = w - V[i]*t
         }
         w.tt.round(delta)
-        h[Pair(j+1, j)]
+        val norm = w.norm()
+        h[Pair(j, j-1)] = norm
+        V.add(w/norm)
         val H = SimpleMatrix(j+1, j)
-        H.fill { i, k -> h.getOrDefault(Pair(i,k), 0.0) } //TODO: pazarlás
+        H.fill { i, k -> h.getOrDefault(Pair(i,k), 0.0) } //TODO: ez így pazarlás
 
         val solv = solveWithRots(H, beta)
         r = solv.resNorm
         y = solv.solution
 
-        if(r / b.tt.frobenius() < eps) break
+        R.add(r)
+        if(r / b.norm() < eps)
+            break
     }
     for (i in 0 until y.numElements) {
         x = x+y[i]*V[i]
@@ -107,7 +111,7 @@ private fun solveWithRots(H: SimpleMatrix, beta: Double): MatSolution {
         g[i] = c * g1 + s * g2
         g[i + 1] = c * g2 - s * g1
     }
-    val residualNorm = H[H.numElements - 1]
+    val residualNorm = Math.abs(g[g.numElements - 1])
     val H1 = H[0..H.numRows() - 1, 0..H.numCols()]
     val y = g[0..g.numElements - 1, 0..1]
     for (i in y.numElements - 1 downTo 0) {
