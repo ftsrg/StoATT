@@ -16,7 +16,7 @@ fun NSInvertVect(V: TTVector, thresh: Double, roundingAccuracy: Double): TTVecto
         Vinv.tt.round(roundingAccuracy)
     } while (residual.tt.frobenius() > thresh)
     return Vinv
-}
+}  
 
 fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: Double, log: Boolean = false): TTVector{
     for ((idx, mode) in A.modes.withIndex()) {
@@ -77,7 +77,7 @@ fun TTGMRES(A: TTSquareMatrix, b: TTVector, x0: TTVector, eps: Double, maxIter: 
         val H = SimpleMatrix(j+1, j)
         H.fill { i, k -> h.getOrDefault(Pair(i,k), 0.0) } //TODO: ez így pazarlás
 
-        val solv = solveWithRots(H, beta)
+        val solv = solveWithRots(H, beta) //TODO: use solution from prev
         r = solv.resNorm
         y = solv.solution
 
