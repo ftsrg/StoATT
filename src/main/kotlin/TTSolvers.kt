@@ -16,7 +16,18 @@ fun NSInvertVect(V: TTVector, thresh: Double, roundingAccuracy: Double): TTVecto
         Vinv.tt.round(roundingAccuracy)
     } while (residual.tt.frobenius() > thresh)
     return Vinv
-}  
+}
+
+fun NSInvertMat(M: TTSquareMatrix, iters: Int, roundingAccuracy: Double): TTSquareMatrix {
+    val I = TTSquareMatrix.eye(M.modes)
+    var X = I / M.tt.frobenius()
+    repeat(iters) {
+        val temp = 2.0 * I - M * X
+        X = X * temp //TODO: elszáll
+        X.tt.round(roundingAccuracy)
+    }
+    return X
+}
 
 fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: Double, log: Boolean = false): TTVector{
     for ((idx, mode) in A.modes.withIndex()) {
@@ -52,8 +63,12 @@ fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: D
     return x
 }
 
+fun DMRGInvert(A: TTSquareMatrix): TTSquareMatrix {
+    TODO()
+}
+
 fun TTGMRES(A: TTSquareMatrix, b: TTVector, x0: TTVector, eps: Double, maxIter: Int = 100): TTVector {
-    val res0 = A * x0 - b
+    val res0 =  b - A*x0
     val R = arrayListOf(res0.norm())
     val beta = R[0]
     val V = arrayListOf(res0/beta)
@@ -86,6 +101,7 @@ fun TTGMRES(A: TTSquareMatrix, b: TTVector, x0: TTVector, eps: Double, maxIter: 
             break
     }
     for (i in 0 until y.numElements) {
+        println("Real res: ${(A*x-b).norm()}, computed res: ${R[i]}")
         x = x+y[i]*V[i]
     }
     return x

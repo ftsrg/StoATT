@@ -79,7 +79,26 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
     }
 
     operator fun times(M: TTSquareMatrix): TTSquareMatrix {
-        TODO()
+        assert(this.tt.cores.size == M.tt.cores.size)
+        { "The TT-Matrices must have the same number of cores!" }
+        val newCores = arrayListOf<CoreTensor>()
+        for (c in 0 until modes.size) {
+            assert(modes[c] == M.modes[c])
+            val thisCore = this.tt.cores[c]
+            val thatCore = M.tt.cores[c]
+            val newCore = CoreTensor(modes[c] * modes[c], thisCore.rows * thatCore.rows, thisCore.cols * thatCore.cols)
+            // TODO: nincs kevésbé kellemetlen? :(
+            for (i in 0 until modes[c]) {
+                for (j in 0 until modes[c]) {
+                    val idx = i * modes[c] + j
+                    for (m in 0 until modes[c]) {
+                        newCore.data[i * modes[c] + j] += thisCore.data[i * modes[c] + m].kron(thatCore.data[m * modes[c] + j])
+                    }
+                }
+            }
+            newCores.add(newCore)
+        }
+        return TTSquareMatrix(TensorTrain(newCores), modes)
     }
 
     operator fun times(v: TTVector): TTVector {
@@ -176,4 +195,8 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
             print(rowSep)
         }
     }
+
+    operator fun div(d: Double): TTSquareMatrix = this * (1.0 / d)
 }
+
+operator fun Double.times(M: TTSquareMatrix) = M * this

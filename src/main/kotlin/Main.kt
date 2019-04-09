@@ -12,6 +12,7 @@ fun main(args: Array<String>) {
     val M = TTSquareMatrix.rand(modes, ranks, max = 2.0, random = rand)
     val A = M+M.diag()*100.0
 //    val x = TTJacobi(A, A*V, 0.0001*(A*V).norm(), 0.001)
+    val Minv = NSInvertMat(M, 20, 0.001)
     val x = TTGMRES(A, A*V, TTVector.zeros(V.modes), 0.0001, maxIter = 1000000)
     println()
     println("Final error:")
