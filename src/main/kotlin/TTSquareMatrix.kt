@@ -197,6 +197,29 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
     }
 
     operator fun div(d: Double): TTSquareMatrix = this * (1.0 / d)
+
+    fun toSimpleMatrix(): SimpleMatrix {
+        val M = SimpleMatrix(numRows, numCols)
+        M.fill { i,j -> this[i,j] }
+        return M
+    }
+
+    fun transpose(): TTSquareMatrix {
+        val transpCores = arrayListOf<CoreTensor>()
+        for ((idx, core) in tt.cores.withIndex()) {
+            val transpCore = CoreTensor(core.modeLength, core.rows, core.cols)
+            val modeLength = modes[idx]
+            for (i in 0 until modeLength) {
+                for (j in 0 until modeLength) {
+                    transpCore.data[i*modeLength+j] = core.data[j*modeLength+i].copy()
+                }
+            }
+            transpCores.add(transpCore)
+        }
+        return TTSquareMatrix(TensorTrain(transpCores), modes)
+    }
+
+    fun divAssign(d: Double) = timesAssign(1.0/d)
 }
 
 operator fun Double.times(M: TTSquareMatrix) = M * this

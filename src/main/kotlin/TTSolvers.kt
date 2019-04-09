@@ -9,7 +9,7 @@ import kotlin.math.sqrt
  */
 fun NSInvertVect(V: TTVector, thresh: Double, roundingAccuracy: Double): TTVector {
     val ones = TTVector.ones(V.modes)
-    var Vinv = ones * (1.0/V.tt.frobenius())
+    var Vinv = ones * (1.0 / V.tt.frobenius())
     do {
         val residual = ones - TTVector(V.tt.hadamard(Vinv.tt))
         Vinv = Vinv + TTVector(Vinv.tt.hadamard(residual.tt))
@@ -20,16 +20,19 @@ fun NSInvertVect(V: TTVector, thresh: Double, roundingAccuracy: Double): TTVecto
 
 fun NSInvertMat(M: TTSquareMatrix, iters: Int, roundingAccuracy: Double): TTSquareMatrix {
     val I = TTSquareMatrix.eye(M.modes)
-    var X = I / M.tt.frobenius()
+    var X = M.transpose()
+    X.divAssign((X * M).tt.frobenius())
     repeat(iters) {
         val temp = 2.0 * I - M * X
+        val res = I - X * M
+        println("Residual norm: ${res.tt.frobenius()}")
         X = X * temp //TODO: elszáll
         X.tt.round(roundingAccuracy)
     }
     return X
 }
 
-fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: Double, log: Boolean = false): TTVector{
+fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: Double, log: Boolean = false): TTVector {
     for ((idx, mode) in A.modes.withIndex()) {
         assert(mode == b.modes[idx]) { "The modes of A and b must be identical!" }
     }
@@ -41,7 +44,7 @@ fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: D
     var x = TTVector.zeros(A.modes)
     var residual: TTVector
     do {
-        x = Dinv * (b - R*x)
+        x = Dinv * (b - R * x)
         if (log) {
             println("Exact:")
             x.printElements()
@@ -53,7 +56,7 @@ fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: D
             x.printElements()
             println()
         }
-        residual = b - A*x
+        residual = b - A * x
     } while (residual.tt.frobenius() > thresh)
     if (log) {
         println()
@@ -68,47 +71,48 @@ fun DMRGInvert(A: TTSquareMatrix): TTSquareMatrix {
 }
 
 fun TTGMRES(A: TTSquareMatrix, b: TTVector, x0: TTVector, eps: Double, maxIter: Int = 100): TTVector {
-    val res0 =  b - A*x0
+    val res0 = b - A * x0
     val R = arrayListOf(res0.norm())
     val beta = R[0]
-    val V = arrayListOf(res0/beta)
-    val h = hashMapOf<Pair<Int,Int>, Double>() //TODO: vmi értelmesebb ehelyett
+    val V = arrayListOf(res0 / beta)
+    val h = hashMapOf<Pair<Int, Int>, Double>() //TODO: vmi értelmesebb ehelyett
     lateinit var y: SimpleMatrix
     var r: Double
     var x = x0.copy()
     for (j in 1..maxIter) {
-        val delta = eps / R[j-1]
-        var w = A * V[j-1]
+        val delta = eps / R[j - 1]
+        var w = A * V[j - 1]
         w.tt.round(delta)
-        for(i in 0 until j){
+        for (i in 0 until j) {
             val t = w * V[i]
-            h[Pair(i, j-1)] = t
-            w = w - V[i]*t
+            h[Pair(i, j - 1)] = t
+            w = w - V[i] * t
         }
         w.tt.round(delta)
         val norm = w.norm()
-        h[Pair(j, j-1)] = norm
-        V.add(w/norm)
-        val H = SimpleMatrix(j+1, j)
-        H.fill { i, k -> h.getOrDefault(Pair(i,k), 0.0) } //TODO: ez így pazarlás
+        h[Pair(j, j - 1)] = norm
+        V.add(w / norm)
+        val H = SimpleMatrix(j + 1, j)
+        H.fill { i, k -> h.getOrDefault(Pair(i, k), 0.0) } //TODO: ez így pazarlás
 
         val solv = solveWithRots(H, beta) //TODO: use solution from prev
         r = solv.resNorm
         y = solv.solution
 
         R.add(r)
-        if(r / b.norm() < eps)
+        if (r / b.norm() < eps)
             break
     }
     for (i in 0 until y.numElements) {
-        println("Real res: ${(A*x-b).norm()}, computed res: ${R[i]}")
-        x = x+y[i]*V[i]
+        println("Real res: ${(A * x - b).norm()}, computed res: ${R[i]}")
+        x = x + y[i] * V[i]
     }
     return x
 }
 
 data class TTSolution(val solution: TTVector, val resNorm: Double)
 data class MatSolution(val solution: SimpleMatrix, val resNorm: Double)
+
 private fun solveWithRots(H: SimpleMatrix, beta: Double): MatSolution {
     val g = SimpleMatrix(H.numRows(), 1)
     g[0] = beta
