@@ -1,3 +1,5 @@
+package solver
+
 import org.ejml.simple.SimpleMatrix
 import java.util.*
 
@@ -7,7 +9,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
         fun zeros(modes: Array<Int>): TTSquareMatrix {
             val cores = ArrayList<CoreTensor>(modes.size)
             for(i in 0 until modes.size) {
-                cores.add(CoreTensor(modes[i]*modes[i], 1, 1))
+                cores.add(CoreTensor(modes[i] * modes[i], 1, 1))
             }
             return TTSquareMatrix(TensorTrain(cores), modes)
         }
@@ -27,7 +29,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
         }
 
         /**
-         * Returns an identity matrix in TT format with the give mode sizes as both row and column modes
+         * Returns an identity matrix in TT format with the give mode sizes as both solver.row and column modes
          */
         fun eye(modes: Array<Int>): TTSquareMatrix {
             val res = zeros(modes)
@@ -42,7 +44,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
         fun diag(vect: TTVector): TTSquareMatrix {
             val zeroCores = arrayListOf<CoreTensor>()
             for (core in vect.tt.cores) {
-                zeroCores.add(CoreTensor(core.modeLength*core.modeLength, core.rows, core.cols))
+                zeroCores.add(CoreTensor(core.modeLength * core.modeLength, core.rows, core.cols))
             }
             val res = TTSquareMatrix(TensorTrain(zeroCores), vect.modes)
             for ((coreIdx, m) in vect.modes.withIndex()) {
@@ -115,7 +117,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
                     "Vector mode length: ${vectCore.modeLength} " +
                     "Matrix column mode length: ${modes[k]}" }
             val matCore = tt.cores[k]
-            val newCore = CoreTensor(modes[k], matCore.rows*vectCore.rows, matCore.cols*vectCore.cols)
+            val newCore = CoreTensor(modes[k], matCore.rows * vectCore.rows, matCore.cols * vectCore.cols)
 
             for(ik in 0 until newCore.modeLength) {
                 for(jk in 0 until vectCore.modeLength) {
@@ -129,7 +131,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
     }
 
     operator fun times(d: Double): TTSquareMatrix {
-        return TTSquareMatrix(d*tt, modes)
+        return TTSquareMatrix(d * tt, modes)
     }
 
     operator fun timesAssign(d: Double) {
@@ -137,7 +139,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
     }
 
     operator fun plus(M: TTSquareMatrix): TTSquareMatrix {
-        return TTSquareMatrix(tt+M.tt, modes)
+        return TTSquareMatrix(tt + M.tt, modes)
     }
 
     operator fun plusAssign(M: TTSquareMatrix) {
@@ -220,6 +222,9 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
     }
 
     fun divAssign(d: Double) = timesAssign(1.0/d)
+
+    //TODO: assertions
+    fun hadamard(B: TTSquareMatrix) = TTSquareMatrix(tt.hadamard(B.tt), modes)
 }
 
 operator fun Double.times(M: TTSquareMatrix) = M * this

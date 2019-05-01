@@ -1,3 +1,5 @@
+package solver
+
 import org.ejml.dense.row.factory.DecompositionFactory_DDRM
 import org.ejml.simple.SimpleMatrix
 import kotlin.math.sqrt
@@ -39,7 +41,7 @@ fun SimpleMatrix.vecNorm2(): Double {
     return sqrt(when {
         this.numRows() == 1 -> (this * this.T())[0, 0]
         this.numCols() == 1 -> (this.T() * this)[0, 0]
-        else -> throw Exception("Matrix should contain only one column or one row")
+        else -> throw Exception("Matrix should contain only one column or one solver.row")
     })
 }
 

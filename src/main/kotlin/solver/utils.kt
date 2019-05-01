@@ -1,3 +1,5 @@
+package solver
+
 import kotlin.math.abs
 
 fun Double.nearZero(thresh: Double = 10E-14) = abs(this) < thresh

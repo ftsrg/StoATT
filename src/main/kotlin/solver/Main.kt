@@ -1,3 +1,8 @@
+package solver
+
+import faulttree.BasicEvent
+import faulttree.FaultTree
+import hu.bme.mit.delta.java.mdd.MddHandle
 import org.ejml.simple.SimpleMatrix
 import java.util.*
 import kotlin.math.abs
@@ -5,22 +10,31 @@ import kotlin.math.sign
 import kotlin.math.sqrt
 
 fun main(args: Array<String>) {
-    val modes = arrayOf(2, 3, 4)
-    val ranks = arrayOf(1, 3, 3, 1)
-    val rand = Random(123)
-    val V = TTVector.rand(modes, ranks, max=1.0, random = rand)
-    val M = TTSquareMatrix.rand(modes, ranks, max = 2.0, random = rand)
-    val A = M+M.diag()*100.0
-//    val x = TTJacobi(A, A*V, 0.0001*(A*V).norm(), 0.001)
-    val Minv = NSInvertMat(M, 20, 0.01)
-//    val x = TTGMRES(A, A*V, TTVector.zeros(V.modes), 0.0001, maxIter = 1000000)
-    println("Without preconditioner:")
-    val x = TTGMRES(M, M*V, TTVector.zeros(V.modes), 0.0001, maxIter = 1000000)
-    println("With preconditioner:")
-    TTGMRES((Minv*M).apply { tt.round(0.001) }, (Minv*M*V).apply { tt.round(0.001) }, TTVector.zeros(V.modes), 0.0001, maxIter = 1000000)
-    println()
-    println("Final error:")
-    (V-x).printElements(numDecimals = 4)
+    val a = BasicEvent(25.0, "a")
+    val b = BasicEvent(15.0, "b")
+    val c = BasicEvent(10.0, "c")
+    val d = BasicEvent(30.0, "d")
+    val Ft = FaultTree(((a and (b or c)) or (b and c)) and d)
+    val Mdd1 = Ft.nonFailureAsMdd() as MddHandle
+    val tt = Ft.asTT()
+    tt.printElements()
+
+//    val modes = arrayOf(2, 3, 4)
+//    val ranks = arrayOf(1, 3, 3, 1)
+//    val rand = Random(123)
+//    val V = TTVector.rand(modes, ranks, max = 1.0, random = rand)
+//    val M = TTSquareMatrix.rand(modes, ranks, max = 2.0, random = rand)
+//    val A = M+M.diag()*100.0
+////    val x = solver.TTJacobi(A, A*V, 0.0001*(A*V).norm(), 0.001)
+//    val Minv = NSInvertMat(M, 20, 0.001)
+////    val x = solver.TTGMRES(A, A*V, solver.TTVector.zeros(V.modes), 0.0001, maxIter = 1000000)
+//    println("Without preconditioner:")
+//    val x = TTGMRES(M, M * V, TTVector.zeros(V.modes), 0.0001, maxIter = 1000000)
+//    println("With preconditioner:")
+//    TTGMRES((Minv * M).apply { tt.round(0.001) }, (Minv * M * V).apply { tt.round(0.001) }, TTVector.zeros(V.modes), 0.0001, maxIter = 1000000)
+//    println()
+//    println("Final error:")
+//    (V-x).printElements(numDecimals = 4)
 }
 
 private fun ttTest() {
@@ -116,22 +130,22 @@ fun GMRES(A: SimpleMatrix, b: SimpleMatrix, m: Int,
 
 /*
 //TODO: x0 default better
-fun TT_GMRES(A: TTSquareMatrix, b: TTVector, m: Int,
-          x0: TTVector = TTVector.ones(b.tt.cores.map { it.modeLength }.toTypedArray())): SolverResult {
+fun TT_GMRES(A: solver.TTSquareMatrix, b: solver.TTVector, m: Int,
+          x0: solver.TTVector = solver.TTVector.solver.ones(b.tt.cores.map { it.modeLength }.toTypedArray())): solver.SolverResult {
     val r0 = b - A * x0
     val beta = r0.tt.frobenius() //TODO: verify norm
     var V = SimpleMatrix(b.numElements, m)
     V[0, 0] = r0 * (1.0 / beta)
     var H = SimpleMatrix(m + 1, m)
     for (j in 0 until m) {
-        var w = A * V.col(j)
+        var w = A * V.solver.col(j)
         for (i in 0..j) {
-            val vi = V.col(i)
-            H[i, j] = w.T() * vi
+            val vi = V.solver.col(i)
+            H[i, j] = w.solver.T() * vi
             w -= H[i, j] * vi
         }
         H[j + 1, j] = w.tt.frobenius()
-        if (H[j + 1, j].nearZero()) {
+        if (H[j + 1, j].solver.nearZero()) {
             H = H[0..j + 1, 0..j]
             V = V[0..V.numRows(), 0..j]
             break
@@ -139,15 +153,15 @@ fun TT_GMRES(A: TTSquareMatrix, b: TTVector, m: Int,
         if (j < m - 1)
             V[0, j + 1] = w * (1.0/H[j + 1, j])
     }
-    val g = beta * eye(H.numRows()).col(0)
+    val g = beta * solver.eye(H.numRows()).solver.col(0)
     for (i in 0 until H.numCols()) {
         val rowNext = H[i + 1, i]
         val rowCurr = H[i, i]
         val denom = sqrt(rowCurr * rowCurr + rowNext * rowNext)
         val s = rowNext / denom
         val c = rowCurr / denom
-        val r1 = H.row(i)
-        val r2 = H.row(i + 1)
+        val r1 = H.solver.row(i)
+        val r2 = H.solver.row(i + 1)
         H[i, 0] = c * r1 + s * r2
         H[i + 1, 0] = c * r2 - s * r1
         val g1 = g[i]
@@ -164,7 +178,7 @@ fun TT_GMRES(A: TTSquareMatrix, b: TTVector, m: Int,
         }
         y[i] /= H[i, i]
     }
-    return SolverResult(x0 + V * y, residualNorm)
+    return solver.SolverResult(x0 + V * y, residualNorm)
 }
 */
 

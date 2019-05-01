@@ -1,3 +1,5 @@
+package solver
+
 import org.ejml.simple.SimpleMatrix
 import java.util.*
 
@@ -9,7 +11,7 @@ class TTVector(var tt: TensorTrain) {
             for (mode in modes) {
                 cores.add(CoreTensor(mode, 1, 1))
             }
-            //TODO: wasting a row and col in each core if another TT is added to it and no rounding is performed
+            //TODO: wasting a solver.row and solver.col in each core if another TT is added to it and no rounding is performed
             return TTVector(TensorTrain(cores))
         }
 
@@ -57,7 +59,7 @@ class TTVector(var tt: TensorTrain) {
 
     operator fun plus(v: TTVector): TTVector {
         //TODO: assert mode size equalities
-        return TTVector(this.tt+v.tt)
+        return TTVector(this.tt + v.tt)
     }
 
     operator fun plusAssign(v: TTVector) = tt.plusAssign(v.tt)
@@ -67,7 +69,7 @@ class TTVector(var tt: TensorTrain) {
     }
 
     operator fun times(d: Double): TTVector {
-        return TTVector(this.tt*d)
+        return TTVector(this.tt * d)
     }
 
     operator fun times(V: TTVector): Double = tt.scalarProduct(V.tt)
@@ -83,5 +85,26 @@ class TTVector(var tt: TensorTrain) {
     fun norm() = tt.frobenius()
     fun copy(): TTVector = TTVector(tt.copy()
     )
+
+    //TODO: this should work with non-square matrices when we have them
+    fun outerProduct(B: TTVector): TTSquareMatrix {
+        assert(this.modes.size == B.modes.size)
+        val newCores = arrayListOf<CoreTensor>()
+        for ((idx, modeSize) in modes.withIndex()) {
+            assert(modeSize == B.modes[idx]) { "Each mode size must be equivalent for the two TT-vectors!" }
+            val newCore = CoreTensor(
+                    modeSize * modeSize,
+                    this.tt.cores[idx].rows*B.tt.cores[idx].rows,
+                    this.tt.cores[idx].cols*B.tt.cores[idx].cols
+            )
+            for(i in 0 until modeSize) {
+                for(j in 0 until modeSize) {
+                    newCore[i*modeSize+j] = this.tt.cores[idx][i].kron(B.tt.cores[idx][j])
+                }
+            }
+            newCores.add(newCore)
+        }
+        return TTSquareMatrix(TensorTrain(newCores), modes)
+    }
 }
 operator fun Double.times(V: TTVector): TTVector = V * this

@@ -1,11 +1,13 @@
+package solver
+
 import org.ejml.simple.SimpleMatrix
 import kotlin.math.sqrt
 
 /**
  * Inverts the elements of a TT-Vector using the Newton-Schulz iterative algorithm
- * @param V Vector to invert in TensorTrain format
+ * @param V Vector to invert in solver.TensorTrain format
  * @param thresh Threshold of the residual's Frobenius norm used for convergence check
- * @return Element-wise inverse of the input in TensorTrain format
+ * @return Element-wise inverse of the input in solver.TensorTrain format
  */
 fun NSInvertVect(V: TTVector, thresh: Double, roundingAccuracy: Double): TTVector {
     val ones = TTVector.ones(V.modes)
@@ -23,10 +25,8 @@ fun NSInvertMat(M: TTSquareMatrix, iters: Int, roundingAccuracy: Double): TTSqua
     var X = M.transpose()
     X.divAssign((X * M).tt.frobenius())
     repeat(iters) {
-        val temp = 2.0 * I - M * X
-        val res = I - X * M
-        println("Residual norm: ${res.tt.frobenius()}")
-        X = X * temp //TODO: elszáll
+        X = X * (2.0 * I - M * X)
+        println(X.tt.cores.map { "${it.rows}*${it.cols}" })
         X.tt.round(roundingAccuracy)
     }
     return X

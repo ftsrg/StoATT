@@ -1,0 +1,3 @@
+[submodule "delta"]
+	path = delta
+	url = https://github.com/FTSRG/delta.git

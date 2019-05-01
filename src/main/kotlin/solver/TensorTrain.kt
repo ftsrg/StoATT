@@ -1,4 +1,4 @@
-
+package solver
 import org.ejml.simple.SimpleMatrix
 import org.ejml.simple.SimpleMatrix.END
 import kotlin.math.max
@@ -16,7 +16,7 @@ class CoreTensor(val modeLength: Int, var rows: Int, var cols: Int) {
     }
 
     operator fun times(d: Double): CoreTensor {
-        val res = CoreTensor(modeLength,rows,cols) //empty at first
+        val res = CoreTensor(modeLength, rows, cols) //empty at first
         for (i in 0 until res.data.size) {
             res.data[i] = data[i]*d
         }
@@ -67,7 +67,7 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
         val firstCoreThat = T.cores[0]
         assert(firstCoreThis.modeLength == firstCoreThat.modeLength)
         { "First core mode lengths don't match! Left: ${firstCoreThis.modeLength}, Right: ${firstCoreThat.modeLength}" }
-        res.addCore(CoreTensor(firstCoreThis.modeLength, firstCoreThis.rows, firstCoreThis.cols+firstCoreThat.cols))
+        res.addCore(CoreTensor(firstCoreThis.modeLength, firstCoreThis.rows, firstCoreThis.cols + firstCoreThat.cols))
         for(i in 0 until firstCoreThis.modeLength) {
             res.cores[0].data[i][0,0] = firstCoreThis.data[i]
             if(firstCoreThat.cols > 0)
@@ -99,7 +99,7 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
         val lastCoreThat = T.cores.last()
         assert(lastCoreThis.modeLength == lastCoreThat.modeLength)
         { "Last core mode lengths don't match! Left: ${lastCoreThis.modeLength}, Right: ${lastCoreThat.modeLength}" }
-        res.addCore(CoreTensor(lastCoreThis.modeLength, lastCoreThis.rows+lastCoreThat.rows, lastCoreThis.cols))
+        res.addCore(CoreTensor(lastCoreThis.modeLength, lastCoreThis.rows + lastCoreThat.rows, lastCoreThis.cols))
         for(i in 0 until lastCoreThis.modeLength) {
             res.cores[res.cores.lastIndex].data[i][0,0] = lastCoreThis.data[i]
             if(lastCoreThat.rows > 0)
@@ -144,7 +144,7 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
             for ((idx, m) in Gk.data.withIndex()) {
                 Gkmat[0, Gk.cols*idx] = m
             }
-            //RQ (row QR) decomposition
+            //RQ (solver.row solver.QR) decomposition
             val qr = Gkmat.T().qr()
             val R = qr.R.T()
             val Q = qr.Q.T()
@@ -196,7 +196,7 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
      */
     fun copy(): TensorTrain {
         return TensorTrain(ArrayList<CoreTensor>(cores.size).apply {
-            for(c in cores) add(c.copy())
+            for (c in cores) add(c.copy())
         })
     }
 
@@ -211,7 +211,7 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
             val thisCore = cores[i]
             val zero = SimpleMatrix(1, thisCore.cols * otherCore.cols)
             v = thisCore.data.foldIndexed(zero) {
-                //TODO: optimize product with kronecker-structured matrix
+                //TODO: optimize solver.product with kronecker-structured matrix
                 idx, acc, matA ->
 
                 val prod = SimpleMatrix(1, acc.numCols())
