@@ -1,6 +1,7 @@
 package solver
 
 import org.ejml.simple.SimpleMatrix
+import kotlin.math.abs
 import kotlin.math.sqrt
 
 /**
@@ -9,13 +10,15 @@ import kotlin.math.sqrt
  * @param thresh Threshold of the residual's Frobenius norm used for convergence check
  * @return Element-wise inverse of the input in solver.TensorTrain format
  */
-fun NSInvertVect(V: TTVector, thresh: Double, roundingAccuracy: Double): TTVector {
+fun NSInvertVect(V: TTVector, thresh: Double, roundingAccuracy: Double, zeroMaskVector: TTVector = TTVector.ones(V.modes)): TTVector {
     val ones = TTVector.ones(V.modes)
-    var Vinv = ones * (1.0 / V.tt.frobenius())
+    var Vinv = zeroMaskVector * (1.0 / V.tt.frobenius()) * (V[0]/ abs(V[0]))
     do {
-        val residual = ones - TTVector(V.tt.hadamard(Vinv.tt))
-        Vinv = Vinv + TTVector(Vinv.tt.hadamard(residual.tt))
+        val residual = zeroMaskVector - V.hadamard(Vinv)
+        Vinv = Vinv + Vinv.hadamard(residual)
         Vinv.tt.round(roundingAccuracy)
+        Vinv.printElements()
+        println()
     } while (residual.tt.frobenius() > thresh)
     return Vinv
 }
@@ -32,13 +35,13 @@ fun NSInvertMat(M: TTSquareMatrix, iters: Int, roundingAccuracy: Double): TTSqua
     return X
 }
 
-fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: Double, log: Boolean = false): TTVector {
+fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: Double, zeroMaskVector: TTVector = TTVector.ones(A.modes), log: Boolean = false): TTVector {
     for ((idx, mode) in A.modes.withIndex()) {
         assert(mode == b.modes[idx]) { "The modes of A and b must be identical!" }
     }
     val D = A.diagVect()
     val Dinv = TTSquareMatrix.diag(
-            NSInvertVect(D, 0.00001 * D.tt.frobenius(), 0.0001)
+            NSInvertVect(D, 0.00001 * D.tt.frobenius(), 0.0001, zeroMaskVector)
     )
     val R = A - A.diag()
     var x = TTVector.zeros(A.modes)

@@ -10,14 +10,27 @@ import kotlin.math.sign
 import kotlin.math.sqrt
 
 fun main(args: Array<String>) {
-    val a = BasicEvent(25.0, "a")
-    val b = BasicEvent(15.0, "b")
-    val c = BasicEvent(10.0, "c")
-    val d = BasicEvent(30.0, "d")
-    val Ft = FaultTree(((a and (b or c)) or (b and c)) and d)
+    val a = BasicEvent(2.0, "a")
+    val b = BasicEvent(1.0, "b")
+    val c = BasicEvent(1.0, "c")
+    val d = BasicEvent(3.0, "d")
+    val Ft = FaultTree((d or (a and (b or c)) or (b and c)))
     val Mdd1 = Ft.nonFailureAsMdd() as MddHandle
-    val tt = Ft.asTT()
-    tt.printElements()
+    val rateMtx = Ft.asTT()
+    rateMtx.printElements()
+    println()
+
+    val stateMaskVector = Ft.getStateMaskVector()
+    rateMtx.tt.round(0.0001)
+    stateMaskVector.tt.round(0.0001)
+    val res = TTGMRES(rateMtx, stateMaskVector, TTVector.zeros(stateMaskVector.modes), 0.0001)
+
+    res.printElements()
+    println()
+    println()
+
+    val res2 = TTJacobi(rateMtx, stateMaskVector, 0.001*stateMaskVector.norm(), 0.001, stateMaskVector)
+    res2.printElements()
 
 //    val modes = arrayOf(2, 3, 4)
 //    val ranks = arrayOf(1, 3, 3, 1)

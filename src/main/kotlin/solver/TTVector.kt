@@ -106,5 +106,8 @@ class TTVector(var tt: TensorTrain) {
         }
         return TTSquareMatrix(TensorTrain(newCores), modes)
     }
+
+    //TODO: asserts
+    fun hadamard(B: TTVector) = TTVector(this.tt.hadamard(B.tt))
 }
 operator fun Double.times(V: TTVector): TTVector = V * this
