@@ -26,4 +26,6 @@ class OrNode(vararg val inputs: FaultTreeNode): FaultTreeNode() {
             ret = ret.union(inputs[idx].getBasicEvents())
         return ret
     }
+
+    override infix fun or(that: FaultTreeNode) = OrNode(*inputs, that)
 }

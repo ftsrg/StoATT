@@ -4,6 +4,7 @@ import org.ejml.simple.SimpleMatrix
 import kotlin.math.abs
 import kotlin.math.sqrt
 
+//TODO: do something with non-definit matrices
 /**
  * Inverts the elements of a TT-Vector using the Newton-Schulz iterative algorithm
  * @param V Vector to invert in solver.TensorTrain format

@@ -3,7 +3,7 @@ package faulttree
 import hu.bme.mit.delta.mdd.MddHandle
 import hu.bme.mit.delta.mdd.MddVariableOrder
 
-class AndNode(vararg val inputs: FaultTreeNode): FaultTreeNode() {
+class AndNode(vararg val inputs: FaultTreeNode) : FaultTreeNode() {
     override fun nonFailureAsMdd(order: MddVariableOrder): MddHandle {
         var ret = inputs[0].nonFailureAsMdd(order)
         for (idx in 1 until inputs.size) {
@@ -25,5 +25,10 @@ class AndNode(vararg val inputs: FaultTreeNode): FaultTreeNode() {
         for (idx in 1 until inputs.size)
             ret = ret.union(inputs[idx].getBasicEvents())
         return ret
+    }
+
+    override infix fun and(rhs: FaultTreeNode) = when (rhs) {
+        is AndNode -> AndNode(*inputs, *rhs.inputs)
+        else -> AndNode(*inputs, rhs)
     }
 }

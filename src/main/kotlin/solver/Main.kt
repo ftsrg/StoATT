@@ -14,7 +14,9 @@ fun main(args: Array<String>) {
     val b = BasicEvent(1.0, "b")
     val c = BasicEvent(1.0, "c")
     val d = BasicEvent(3.0, "d")
-    val Ft = FaultTree((d or (a and (b or c)) or (b and c)))
+    val e = BasicEvent(4.23, "e")
+    val f = BasicEvent(0.5, "f")
+    val Ft = FaultTree((e and d) or (((a and f) and (b or c)) or (b and c and e)))
     val Mdd1 = Ft.nonFailureAsMdd() as MddHandle
     val rateMtx = Ft.asTT()
     rateMtx.printElements()
