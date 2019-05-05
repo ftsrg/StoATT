@@ -1,7 +1,6 @@
 package solver
 
-import faulttree.BasicEvent
-import faulttree.FaultTree
+import faulttree.galileoParser
 import hu.bme.mit.delta.java.mdd.MddHandle
 import org.ejml.simple.SimpleMatrix
 import java.util.*
@@ -10,13 +9,40 @@ import kotlin.math.sign
 import kotlin.math.sqrt
 
 fun main(args: Array<String>) {
-    val a = BasicEvent(.20, "a")
-    val b = BasicEvent(.10, "b")
-    val c = BasicEvent(.10, "c")
-    val d = BasicEvent(.30, "d")
-    val e = BasicEvent(.423, "e")
-    val f = BasicEvent(0.5, "f")
-    val Ft = FaultTree((e and d) or (((a and f) and (b or c)) or (b and c and e)))
+
+    val galTest =
+            """
+                toplevel MyTree;
+                MyTree or EAndD AAndFAndBOrC TriAnd;
+
+                EventA lambda=.2;
+                EventB lambda=.1;
+                EventC lambda=0.1;
+                EventD lambda=.3;
+                EventE lambda=.423;
+                EventF lambda=0.5;
+
+                EAndD and EventE EventD;
+                /* (((a and f) and (b or c)) or (b and c and e)) */
+                AAndFAndBOrC and EventA EventF BOrC;
+                BOrC or EventB EventC;
+                TriAnd and EventB EventC EventE;
+            """.trimIndent()
+
+    val Ft = galileoParser.parse(galTest.byteInputStream())
+
+//    val a = BasicEvent(.20, "a")
+//    val b = BasicEvent(.10, "b")
+//    val c = BasicEvent(.10, "c")
+//    val d = BasicEvent(.30, "d")
+//    val e = BasicEvent(.423, "e")
+//    val f = BasicEvent(0.5, "f")
+//    val EAndD = e and d
+//    val BOrC = b or c
+//    val AAndFAndBOrC = (a and f) and BOrC
+//    val TriAnd = b and c and e
+//    val MyTree = EAndD or (AAndFAndBOrC or TriAnd)
+//    val Ft = FaultTree(MyTree)
     val Mdd1 = Ft.nonFailureAsMdd() as MddHandle
     val rateMtx = Ft.asTT()
     rateMtx.printElements()
@@ -38,8 +64,8 @@ fun main(args: Array<String>) {
     println("MTFF = ${-res2[0]}")
     println()
 
-    val inv = NSInvertMat(rateMtx, 20, 0.01)
-    (inv * rateMtx).printElements()
+//    val inv = NSInvertMat(rateMtx, 20, 0.01)
+//    (inv * rateMtx).printElements()
 }
 
 private fun ttTest() {

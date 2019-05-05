@@ -7,6 +7,7 @@ import parser.GalileoLexer
 import parser.GalileoListenerImpl
 import parser.GalileoParser
 import java.io.InputStream
+import java.util.*
 
 object galileoParser {
     fun parse(stream: InputStream): FaultTree {

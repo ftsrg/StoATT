@@ -87,4 +87,34 @@ public interface GalileoListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitDormancy(GalileoParser.DormancyContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link GalileoParser#operation}.
+	 * @param ctx the parse tree
+	 */
+	void enterOperation(GalileoParser.OperationContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link GalileoParser#operation}.
+	 * @param ctx the parse tree
+	 */
+	void exitOperation(GalileoParser.OperationContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link GalileoParser#or}.
+	 * @param ctx the parse tree
+	 */
+	void enterOr(GalileoParser.OrContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link GalileoParser#or}.
+	 * @param ctx the parse tree
+	 */
+	void exitOr(GalileoParser.OrContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link GalileoParser#and}.
+	 * @param ctx the parse tree
+	 */
+	void enterAnd(GalileoParser.AndContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link GalileoParser#and}.
+	 * @param ctx the parse tree
+	 */
+	void exitAnd(GalileoParser.AndContext ctx);
 }
