@@ -10,11 +10,11 @@ import kotlin.math.sign
 import kotlin.math.sqrt
 
 fun main(args: Array<String>) {
-    val a = BasicEvent(2.0, "a")
-    val b = BasicEvent(1.0, "b")
-    val c = BasicEvent(1.0, "c")
-    val d = BasicEvent(3.0, "d")
-    val e = BasicEvent(4.23, "e")
+    val a = BasicEvent(.20, "a")
+    val b = BasicEvent(.10, "b")
+    val c = BasicEvent(.10, "c")
+    val d = BasicEvent(.30, "d")
+    val e = BasicEvent(.423, "e")
     val f = BasicEvent(0.5, "f")
     val Ft = FaultTree((e and d) or (((a and f) and (b or c)) or (b and c and e)))
     val Mdd1 = Ft.nonFailureAsMdd() as MddHandle
@@ -34,22 +34,12 @@ fun main(args: Array<String>) {
     val res2 = TTJacobi(rateMtx, stateMaskVector, 0.001*stateMaskVector.norm(), 0.001, stateMaskVector)
     res2.printElements()
 
-//    val modes = arrayOf(2, 3, 4)
-//    val ranks = arrayOf(1, 3, 3, 1)
-//    val rand = Random(123)
-//    val V = TTVector.rand(modes, ranks, max = 1.0, random = rand)
-//    val M = TTSquareMatrix.rand(modes, ranks, max = 2.0, random = rand)
-//    val A = M+M.diag()*100.0
-////    val x = solver.TTJacobi(A, A*V, 0.0001*(A*V).norm(), 0.001)
-//    val Minv = NSInvertMat(M, 20, 0.001)
-////    val x = solver.TTGMRES(A, A*V, solver.TTVector.zeros(V.modes), 0.0001, maxIter = 1000000)
-//    println("Without preconditioner:")
-//    val x = TTGMRES(M, M * V, TTVector.zeros(V.modes), 0.0001, maxIter = 1000000)
-//    println("With preconditioner:")
-//    TTGMRES((Minv * M).apply { tt.round(0.001) }, (Minv * M * V).apply { tt.round(0.001) }, TTVector.zeros(V.modes), 0.0001, maxIter = 1000000)
-//    println()
-//    println("Final error:")
-//    (V-x).printElements(numDecimals = 4)
+    println()
+    println("MTFF = ${-res2[0]}")
+    println()
+
+    val inv = NSInvertMat(rateMtx, 20, 0.01)
+    (inv * rateMtx).printElements()
 }
 
 private fun ttTest() {
