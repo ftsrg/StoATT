@@ -1,8 +1,6 @@
-package solver
-
 import faulttree.galileoParser
-import hu.bme.mit.delta.java.mdd.MddHandle
 import org.ejml.simple.SimpleMatrix
+import solver.*
 import java.util.*
 import kotlin.math.abs
 import kotlin.math.sign
@@ -30,42 +28,35 @@ fun main(args: Array<String>) {
             """.trimIndent()
 
     val Ft = galileoParser.parse(galTest.byteInputStream())
+    val rateMtx = Ft.getTransientGenerator()
 
-//    val a = BasicEvent(.20, "a")
-//    val b = BasicEvent(.10, "b")
-//    val c = BasicEvent(.10, "c")
-//    val d = BasicEvent(.30, "d")
-//    val e = BasicEvent(.423, "e")
-//    val f = BasicEvent(0.5, "f")
-//    val EAndD = e and d
-//    val BOrC = b or c
-//    val AAndFAndBOrC = (a and f) and BOrC
-//    val TriAnd = b and c and e
-//    val MyTree = EAndD or (AAndFAndBOrC or TriAnd)
-//    val Ft = FaultTree(MyTree)
-    val Mdd1 = Ft.nonFailureAsMdd() as MddHandle
-    val rateMtx = Ft.asTT()
-    rateMtx.printElements()
-    println()
-
+    println("GMRES without preconditioner:")
     val stateMaskVector = Ft.getStateMaskVector()
     rateMtx.tt.round(0.0001)
     stateMaskVector.tt.round(0.0001)
     val res = TTGMRES(rateMtx, stateMaskVector, TTVector.zeros(stateMaskVector.modes), 0.0001)
-
     res.printElements()
     println()
     println()
 
-    val res2 = TTJacobi(rateMtx, stateMaskVector, 0.001*stateMaskVector.norm(), 0.001, stateMaskVector)
+    println("GMRES with preconditioner:")
+    val prec = jacobiPreconditioner(rateMtx, stateMaskVector)
+    val precdMtx = prec * rateMtx
+    precdMtx.tt.round(0.0001)
+    val precdVect = prec*stateMaskVector
+    precdVect.tt.round(0.0001)
+    val resPrecd = TTGMRES(precdMtx, precdVect, TTVector.zeros(stateMaskVector.modes), 0.0001)
+    resPrecd.printElements()
+    println()
+    println()
+
+    println("TT-Jacobi: ")
+    val res2 = TTJacobi(rateMtx, stateMaskVector, 0.001 * stateMaskVector.norm(), 0.001, stateMaskVector)
     res2.printElements()
 
     println()
     println("MTFF = ${-res2[0]}")
     println()
-
-//    val inv = NSInvertMat(rateMtx, 20, 0.01)
-//    (inv * rateMtx).printElements()
 }
 
 private fun ttTest() {
@@ -162,7 +153,7 @@ fun GMRES(A: SimpleMatrix, b: SimpleMatrix, m: Int,
 /*
 //TODO: x0 default better
 fun TT_GMRES(A: solver.TTSquareMatrix, b: solver.TTVector, m: Int,
-          x0: solver.TTVector = solver.TTVector.solver.ones(b.tt.cores.map { it.modeLength }.toTypedArray())): solver.SolverResult {
+          x0: solver.TTVector = solver.TTVector.solver.ones(b.tt.cores.map { it.modeLength }.toTypedArray())): SolverResult {
     val r0 = b - A * x0
     val beta = r0.tt.frobenius() //TODO: verify norm
     var V = SimpleMatrix(b.numElements, m)
@@ -209,7 +200,7 @@ fun TT_GMRES(A: solver.TTSquareMatrix, b: solver.TTVector, m: Int,
         }
         y[i] /= H[i, i]
     }
-    return solver.SolverResult(x0 + V * y, residualNorm)
+    return SolverResult(x0 + V * y, residualNorm)
 }
 */
 

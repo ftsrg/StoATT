@@ -29,7 +29,7 @@ class FaultTree(val topNode: FaultTreeNode) {
         return ArrayList(topNode.getBasicEvents())
     }
 
-    fun asTT(): TTSquareMatrix {
+    fun getTransientGenerator(): TTSquareMatrix {
         //TODO: handle single event
         //TODO: don't care values?
         //TODO: think about transpositions
