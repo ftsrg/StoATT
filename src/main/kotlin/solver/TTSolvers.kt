@@ -165,9 +165,9 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
     //TODO: pre-orthogonalization
 
     //sweep through the cores forward and backward
-    val sweepRange =
-            (0 until x.modes.size).toList().map { it to true } +
-            (x.modes.size - 1 downTo 1).toList().map { it to false }
+    val sweepRange = //list of (core index: Int, forward: Bool)
+            (0 until x.modes.size-1).toList().map { it to true } +
+            (x.modes.size downTo 1).toList().map { it to false }
     for ((k, forward) in sweepRange) {
 
         val currCore = x.tt.cores[k]
@@ -319,7 +319,6 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
             //TODO: use current iterate of the core instead of a zero vector as the initial solution
             w = ALSLocalReGMRES(psi, phi, A, w0, F, k, residualThreshold*0.1)
         }
-        //TODO: recover X_k from w
         for (i in 0 until currCore.modeLength) {
             for(beta_minus in 0 until currCore.rows) {
                 for (beta in 0 until currCore.cols) {
@@ -328,14 +327,48 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
             }
         }
 
-        //TODO: orthogonalize new core
-        if(forward) { //QR
-
-        } else { //RQ
-
+        //TODO: extract the orthogonalizations into methods in either TT or CoreTensor
+        if(forward) { //Left orthogonalization
+            val leftUnfolding = SimpleMatrix(currCore.modeLength*currCore.rows, currCore.cols)
+            for((i, mat) in currCore.data.withIndex()) {
+                leftUnfolding[i*currCore.rows, 0] = mat
+            }
+            val QR = leftUnfolding.qr()
+            val Q = QR.Q
+            val R = QR.R
+            val nextCore = x.tt.cores[k + 1]
+            for ((i, mat) in nextCore.data.withIndex()) {
+                nextCore.data[i] = R * mat
+            }
+            nextCore.rows = nextCore.data[0].numRows()
+            nextCore.cols = nextCore.data[0].numCols()
+            for(i in 0 until currCore.modeLength) {
+                currCore.data[i] = Q[i*currCore.rows..(i+1)*currCore.rows, 0..Q.numCols()]
+            }
+            currCore.rows = currCore.data[0].numRows()
+            currCore.cols = currCore.data[0].numCols()
+        } else { //Right orthogonalization
+            val rightUnfolding = SimpleMatrix(currCore.rows, currCore.modeLength*currCore.cols)
+            for((i, mat) in currCore.data.withIndex()) {
+                rightUnfolding[0, i*currCore.cols] = mat
+            }
+            val RQ_T = rightUnfolding.T().qr()
+            val R = RQ_T.R.T()
+            val Q = RQ_T.R.T()
+            val prevCore = x.tt.cores[k-1]
+            for ((i, mat) in prevCore.data.withIndex()) {
+                prevCore.data[i] *= R
+            }
+            prevCore.rows = prevCore.data[0].numRows()
+            prevCore.cols = prevCore.data[0].numCols()
+            for (i in 0 until currCore.modeLength) {
+                currCore.data[i] = Q[0..Q.numRows(), i*currCore.cols..(i+1)*currCore.cols]
+            }
+            currCore.rows = currCore.data[0].numRows()
+            currCore.cols = currCore.data[0].numCols()
         }
-        TODO()
     }
+    TODO()
     return x
 }
 

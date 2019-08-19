@@ -133,6 +133,10 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
         return sqrt(scalarProduct(this)) //TODO: can it be optimized? cache?
     }
 
+    /**
+     * Performs SVD-based Tensor Train rounding
+     * @param accuracy Relative accuracy of the rounding procedure
+     */
     fun round(accuracy: Double) {
         //init
         val delta = accuracy / Math.sqrt((cores.size-1).toDouble()) * frobenius()
