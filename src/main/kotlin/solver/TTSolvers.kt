@@ -1,5 +1,6 @@
 package solver
 
+import org.ejml.data.SingularMatrixException
 import org.ejml.simple.SimpleMatrix
 import kotlin.math.abs
 import kotlin.math.sqrt
@@ -82,6 +83,8 @@ fun DMRGInvert(A: TTSquareMatrix): TTSquareMatrix {
 }
 
 fun TTGMRES(A: TTSquareMatrix, b: TTVector, x0: TTVector, eps: Double, maxIter: Int = 100): TTVector {
+    // Reference for the algorithm:
+    // S. V. DOLGOV - TT-GMRES: on solution to a linear system in the structured tensor format
     val res0 = b - A * x0
     val R = arrayListOf(res0.norm())
     val beta = R[0]
@@ -104,7 +107,7 @@ fun TTGMRES(A: TTSquareMatrix, b: TTVector, x0: TTVector, eps: Double, maxIter: 
         h[Pair(j, j - 1)] = norm
         V.add(w / norm)
         val H = SimpleMatrix(j + 1, j)
-        H.fill { i, k -> h.getOrDefault(Pair(i, k), 0.0) } //TODO: ez így pazarlás
+        H.fill { i, k -> h.getOrDefault(Pair(i, k), 0.0) } //TODO: waste of time, the data should already be written into the H matrix instead of the dictionary
 
         val solv = solveWithRots(H, beta) //TODO: use solution from prev
         r = solv.resNorm
@@ -154,17 +157,20 @@ private fun solveWithRots(H: SimpleMatrix, beta: Double): MatSolution {
     return MatSolution(y, residualNorm)
 }
 
-fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.modes), eps: Double): TTVector {
+fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.modes), residualThreshold: Double): TTVector {
     // Reference for the algorithm:
     // I. V. OSELEDETS AND S. V. DOLGOV - Solution of Linear Systems and Matrix Inversion in the TT-Format
 
     val x = x0.copy()
     //TODO: pre-orthogonalization
-    
-    for (k in 0 until x.modes.size) { //sweep through the cores
+
+    //sweep through the cores forward and backward
+    val sweepRange =
+            (0 until x.modes.size).toList().map { it to true } +
+            (x.modes.size - 1 downTo 1).toList().map { it to false }
+    for ((k, forward) in sweepRange) {
 
         val currCore = x.tt.cores[k]
-        //TODO: TT instead of full matrix?
         //TODO: parallel computation of elements
         //TODO: dynamic computation of psi and phi (reuse previous results)
 
@@ -245,8 +251,43 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
         //endregion
 
         //Local solution
+
+        //region Computation of local right-hand side
+        //assemble full F=[ Q^T*f^_k(0); Q^T*f^_k(1) ... Q^T*f^_k(n_k) ]  matrix
+        var leftPart = eye(1)
+        for (l in 0 until k-1) {
+            var currFactor = SimpleMatrix(x.tt.cores[l].rows*f.tt.cores[l].rows, x.tt.cores[l].cols*f.tt.cores[l].cols)
+            for(m in 0 until x.modes[l])
+                currFactor += x.tt.cores[l][m].kron(f.tt.cores[l][m])
+            leftPart *= currFactor
+        }
+        var rightPart = eye(1)
+        for(l in x.modes.size-1 downTo k) {
+            var currFactor = SimpleMatrix(x.tt.cores[l].rows*f.tt.cores[l].rows, x.tt.cores[l].cols*f.tt.cores[l].cols)
+            for(m in 0 until x.modes[l])
+                currFactor += x.tt.cores[l][m].kron(f.tt.cores[l][m])
+            rightPart = currFactor * rightPart
+        }
+        val F = SimpleMatrix(currCore.modeLength*currCore.rows*currCore.cols, 1)
+        val middleAux = SimpleMatrix(currCore.rows, currCore.cols)
+        //TODO: can this be done more efficiently by computing a product leftpart*(something_that_gives_the_whole_result)*rightpart?
+        for(i in 0 until currCore.modeLength) {
+            for(alphaMinus in 0 until currCore.rows) {
+                for(alpha in 0 until currCore.cols) {
+                    middleAux[alphaMinus, alpha] = 1.0
+                    //TODO: check indexing!!!
+                    val elem = leftPart*middleAux.kron(f.tt.cores[k][i]) * rightPart
+                    assert(elem.numElements == 1)
+                    F[i*currCore.rows*currCore.cols+alphaMinus*currCore.cols+alpha] = elem[0]
+                    middleAux[alphaMinus, alpha] = 0.0
+                }
+            }
+        }
+        //endregion
+
         //TODO: refine this criterion; the current threshold is taken from the original article, but maybe an adaptive/adjustable one would be better
         val solveDirectly = currCore.modeLength*currCore.modeLength*currCore.cols*currCore.rows < 1000
+        lateinit var w: SimpleMatrix
         if(solveDirectly) {
             val dim = currCore.modeLength * currCore.rows * currCore.cols
             val FullB = SimpleMatrix(dim, dim)
@@ -267,48 +308,117 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
                 }
             }
 
-            //assemble full F=[ Q^T*f^_k(0); Q^T*f^_k(1) ... Q^T*f^_k(n_k) ]  matrix
-            var leftPart = eye(1)
-            for (l in 0 until k-1) {
-                var currFactor = SimpleMatrix(x.tt.cores[l].rows*f.tt.cores[l].rows, x.tt.cores[l].cols*f.tt.cores[l].cols)
-                for(m in 0 until x.modes[l])
-                    currFactor += x.tt.cores[l][m].kron(f.tt.cores[l][m])
-                leftPart *= currFactor
+            //solve Bw=F
+            try {
+                w = FullB.solve(F)
+            } catch (e: SingularMatrixException) {
+                w = FullB.pseudoInverse() * F
             }
-            var rightPart = eye(1)
-            for(l in x.modes.size-1 downTo k) {
-                var currFactor = SimpleMatrix(x.tt.cores[l].rows*f.tt.cores[l].rows, x.tt.cores[l].cols*f.tt.cores[l].cols)
-                for(m in 0 until x.modes[l])
-                    currFactor += x.tt.cores[l][m].kron(f.tt.cores[l][m])
-                rightPart = currFactor * rightPart
-            }
-            val F = SimpleMatrix(currCore.modeLength*currCore.rows*currCore.cols, 1)
-            val middleAux = SimpleMatrix(currCore.rows, currCore.cols)
-            //TODO: can this be done more efficiently by computing a product leftpart*(something_that_gives_the_whole_result)*rightpart?
-            for(i in 0 until currCore.modeLength) {
-                for(alphaMinus in 0 until currCore.rows) {
-                    for(alpha in 0 until currCore.cols) {
-                        middleAux[alphaMinus, alpha] = 1.0
-                        //TODO: check indexing!!!
-                        val elem = leftPart*middleAux.kron(f.tt.cores[k][i]) * rightPart
-                        assert(elem.numElements == 1)
-                        F[i*currCore.rows*currCore.cols+alphaMinus*currCore.cols+alpha] = elem[0]
-                        middleAux[alphaMinus, alpha] = 0.0
-                    }
-                }
-            }
-
-            //solve Bw=f
-            val w = FullB.solve(F)
         } else {
-            //TODO: solve Bw=f iteratively
+            val w0 = F.createLike()
+            //TODO: use current iterate of the core instead of a zero vector as the initial solution
+            w = ALSLocalReGMRES(psi, phi, A, w0, F, k, residualThreshold*0.1)
         }
         //TODO: recover X_k from w
+        for (i in 0 until currCore.modeLength) {
+            for(beta_minus in 0 until currCore.rows) {
+                for (beta in 0 until currCore.cols) {
+                    currCore[i][beta_minus, beta] = w[i*currCore.rows*currCore.cols+beta_minus*currCore.cols+beta]
+                }
+            }
+        }
 
         //TODO: orthogonalize new core
+        if(forward) { //QR
+
+        } else { //RQ
+
+        }
         TODO()
     }
     return x
+}
+
+private fun ALSLocalReGMRES(psi: Array<Array<SimpleMatrix>>, phi: Array<Array<SimpleMatrix>>, A: TTSquareMatrix, w0: SimpleMatrix, F: SimpleMatrix, k: Int, threshold: Double): SimpleMatrix {
+    val r_k = phi.size
+    val r_kminus = psi.size
+    //TODO: assemble this matrix while computing phi, instead of storing phi in an array-of-arrays
+    val Ak = A.tt.cores[k]
+    val phiMat = SimpleMatrix(Ak.cols*phi.size, phi.size)
+    val R_k = Ak.cols
+    for ((beta, phi_beta) in phi.withIndex()) {
+        for((gamma, phi_beta_gamma) in phi_beta.withIndex()) {
+            phiMat[beta*R_k, gamma] = phi_beta_gamma
+        }
+    }
+    val R_kminus = Ak.rows
+    val psiMat = SimpleMatrix(r_kminus, r_kminus* R_kminus)
+    for((beta_minus, psi_beta_minus) in psi.withIndex()) {
+        for((gamma_minus, psiCurr) in psi_beta_minus.withIndex()) {
+            psiMat[beta_minus, gamma_minus*R_kminus] = psiCurr
+        }
+    }
+
+    fun computeMatVec(y: SimpleMatrix): SimpleMatrix {
+        val res = F.createLike()
+        val n_k = A.modes[k]
+
+        //Computation of Y'
+        val YMat = SimpleMatrix(r_k,r_kminus* n_k)
+        for(i in 0 until n_k) {
+            for(gamma_minus in 0 until r_kminus) {
+                //TODO: check index ranges
+                YMat[0, i*r_kminus+gamma_minus] = y[i*r_kminus*r_k+gamma_minus*r_k..i*r_kminus*r_k+(gamma_minus+1)*r_k, 0..0]
+            }
+        }
+        val YPrime = phiMat*YMat
+
+        //Computation of Y''
+        val YPrimeReshaped = SimpleMatrix(n_k *R_k, r_k*r_kminus)
+        //TODO: use matrix extraction/insertion if possible instead of element-by-element copy (hopefully it will be more efficient)
+        for(beta in 0 until r_k) {
+            for(gamma_minus in 0 until r_kminus) {
+                for(jk in 0 until n_k) {
+                    for(idx in 0 until R_k) {
+                        YPrimeReshaped[jk*R_k+idx, beta*r_kminus+gamma_minus] = YPrime[beta*R_k+idx, jk*r_kminus+gamma_minus]
+                    }
+                }
+            }
+        }
+        val AkUnfolding = SimpleMatrix(n_k * R_kminus, n_k * Ak.cols)
+        for (ik in 0 until n_k) {
+            for(jk in 0 until n_k) {
+                AkUnfolding[ik* R_kminus, jk*Ak.cols] = Ak[ik*n_k+jk]
+            }
+        }
+        val YDoublePrime = AkUnfolding*YPrimeReshaped
+
+        //Computation of the result
+        val YDoublePrimeReshaped = SimpleMatrix(r_kminus*R_kminus, n_k*r_k)
+        for(gamma_minus in 0 until r_kminus) {
+            for(idx in 0 until R_kminus) {
+                for(ik in 0 until n_k) {
+                    for(beta in 0 until r_k) {
+                        YDoublePrimeReshaped[gamma_minus*R_kminus+idx, ik*r_k+beta] =
+                                YDoublePrime[ik*R_kminus+idx, beta*r_kminus+gamma_minus]
+                    }
+                }
+            }
+        }
+        val resTemp = psiMat*YDoublePrimeReshaped
+        //res is indexed like F, hint: "F[i*currCore.rows*currCore.cols+alphaMinus*currCore.cols+alpha] = elem[0]"
+        for(i in 0 until n_k) {
+            for(beta_minus in 0 until r_kminus) {
+                for(beta in 0 until r_k) {
+                    res[i*r_kminus*r_k+beta_minus*r_k+beta] = resTemp[beta_minus, i*r_k+beta]
+                }
+            }
+        }
+
+        return res
+    }
+
+    return ReGMRES(::computeMatVec, F, 5, w0, threshold)
 }
 
 fun AMEn(A: TTSquareMatrix, b: TTVector): TTVector {

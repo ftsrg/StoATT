@@ -1,10 +1,10 @@
+
 import faulttree.galileoParser
 import org.ejml.simple.SimpleMatrix
 import solver.*
 import java.util.*
 import kotlin.math.abs
 import kotlin.math.sign
-import kotlin.math.sqrt
 
 fun main(args: Array<String>) {
 
@@ -76,79 +76,17 @@ private fun ttTest() {
 fun GMRESTest(size: Int = 6): Double {
     val A = randSquareMtx(size)
     val b = A * ones(size)
-    val res = GMRES(A, b, size).solution
+    val res = GMRES({x->A*x}, b, size).solution
     return (b - A * res).vecNorm2()
 }
 
 fun reGMRESTest(size: Int=6): Double {
     val A = randSquareMtx(size)
     val b = A * ones(size)
-    val res = restartedGMRES(A, b, 5, threshold = 0.1)
+    val res = ReGMRES({ x->A*x}, b, 5, threshold = 0.1)
     return (b - A * res).vecNorm2()
 }
 
-data class SolverResult(val solution: SimpleMatrix, val residualNorm: Double)
-
-fun restartedGMRES(A: SimpleMatrix, b: SimpleMatrix, m: Int,
-                   x0: SimpleMatrix = SimpleMatrix(b.numRows(), 1), threshold: Double): SimpleMatrix {
-    var res = x0
-    do {
-        val iterResult = GMRES(A, b, m, res)
-        res = iterResult.solution
-    } while (iterResult.residualNorm > threshold)
-    return res
-}
-
-fun GMRES(A: SimpleMatrix, b: SimpleMatrix, m: Int,
-          x0: SimpleMatrix = SimpleMatrix(b.numRows(), 1)): SolverResult {
-    val r0 = b - A * x0
-    val beta = r0.vecNorm2()
-    var V = SimpleMatrix(b.numRows(), m)
-    V[0, 0] = r0 / beta
-    var H = SimpleMatrix(m + 1, m)
-    for (j in 0 until m) {
-        var w = A * V.col(j)
-        for (i in 0..j) {
-            val vi = V.col(i)
-            H[i, j] = w.T() * vi
-            w -= H[i, j] * vi
-        }
-        H[j + 1, j] = w.vecNorm2()
-        if (H[j + 1, j].nearZero(10E-14)) {
-            H = H[0..j + 1, 0..j]
-            V = V[0..V.numRows(), 0..j]
-            break
-        }
-        if (j < m - 1)
-            V[0, j + 1] = w / H[j + 1, j]
-    }
-    val g = beta * eye(H.numRows()).col(0)
-    for (i in 0 until H.numCols()) {
-        val rowNext = H[i + 1, i]
-        val rowCurr = H[i, i]
-        val denom = sqrt(rowCurr * rowCurr + rowNext * rowNext)
-        val s = rowNext / denom
-        val c = rowCurr / denom
-        val r1 = H.row(i)
-        val r2 = H.row(i + 1)
-        H[i, 0] = c * r1 + s * r2
-        H[i + 1, 0] = c * r2 - s * r1
-        val g1 = g[i]
-        val g2 = g[i + 1]
-        g[i] = c * g1 + s * g2
-        g[i + 1] = c * g2 - s * g1
-    }
-    val residualNorm = H[H.numElements-1]
-    H = H[0..H.numRows() - 1, 0..H.numCols()]
-    val y = g[0..g.numElements - 1, 0..1]
-    for (i in y.numElements - 1 downTo 0) {
-        for (j in y.numElements - 1 downTo i + 1) {
-            y[i] -= H[i, j] * y[j]
-        }
-        y[i] /= H[i, i]
-    }
-    return SolverResult(x0 + V * y, residualNorm)
-}
 
 /*
 //TODO: x0 default better
