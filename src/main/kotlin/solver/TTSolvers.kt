@@ -157,183 +157,187 @@ private fun solveWithRots(H: SimpleMatrix, beta: Double): MatSolution {
     return MatSolution(y, residualNorm)
 }
 
-fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.modes), residualThreshold: Double): TTVector {
+fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.modes), residualThreshold: Double, maxSweeps: Int): TTVector {
     // Reference for the algorithm:
     // I. V. OSELEDETS AND S. V. DOLGOV - Solution of Linear Systems and Matrix Inversion in the TT-Format
 
     val x = x0.copy()
-    //TODO: pre-orthogonalization
+    for (i in x.tt.cores.size - 2 downTo 0) {
+        x.tt.rightOrthogonalizeCore(i)
+    }
 
     //sweep through the cores forward and backward
     val sweepRange = //list of (core index: Int, forward: Bool)
             (0 until x.modes.size-1).toList().map { it to true } +
             (x.modes.size downTo 1).toList().map { it to false }
-    for ((k, forward) in sweepRange) {
+    for (sweep in 0..maxSweeps) {
+        for ((k, forward) in sweepRange) {
 
-        val currCore = x.tt.cores[k]
-        //TODO: parallel computation of elements
-        //TODO: dynamic computation of psi and phi (reuse previous results)
+            val currCore = x.tt.cores[k]
+            //TODO: parallel computation of elements
+            //TODO: dynamic computation of psi and phi (reuse previous results)
 
-        //region Computation of psi
-        val psi = Array(currCore.rows) {
-            Array(currCore.rows) { ones(1, currCore.rows) }
-        }
-        val psiPrev = Array(currCore.rows) {
-            Array(currCore.rows) { ones(1, currCore.rows) }
-        }
-        for (kk in 0 until k - 1) {
-            //TODO: optimizations
-            for(beta in 0 until psiPrev.size)
-                for(gamma in 0 until psiPrev[beta].size)
-                    psiPrev[beta][gamma] = psi[beta][gamma]
+            //region Computation of psi
+            val psi = Array(currCore.rows) {
+                Array(currCore.rows) { ones(1, currCore.rows) }
+            }
+            val psiPrev = Array(currCore.rows) {
+                Array(currCore.rows) { ones(1, currCore.rows) }
+            }
+            for (kk in 0 until k - 1) {
+                //TODO: optimizations
+                for(beta in 0 until psiPrev.size)
+                    for(gamma in 0 until psiPrev[beta].size)
+                        psiPrev[beta][gamma] = psi[beta][gamma]
 
-            for(beta in 0 until psi.size) {
-                for(gamma in 0 until psi[beta].size) {
-                    psi[beta][gamma].fill(0.0)
+                for(beta in 0 until psi.size) {
+                    for(gamma in 0 until psi[beta].size) {
+                        psi[beta][gamma].fill(0.0)
 
-                    for(betaPrev in 0 until psiPrev.size) {
-                        for(gammaPrev in 0 until psiPrev[beta].size) {
-                            val ACore = A.tt.cores[kk]
-                            val xCore = x.tt.cores[kk]
-                            for(i in 0 until A.modes[kk]) {
-                                val xCore_i = xCore[i]
-                                for(j in 0 until A.modes[kk]) {
-                                    psi[beta][gamma] += psiPrev[betaPrev][gammaPrev] *
-                                                        ACore[i*ACore.modeLength+j] *
-                                                        xCore_i[betaPrev,beta] *
-                                                        xCore[j][gammaPrev,gamma]
+                        for(betaPrev in 0 until psiPrev.size) {
+                            for(gammaPrev in 0 until psiPrev[beta].size) {
+                                val ACore = A.tt.cores[kk]
+                                val xCore = x.tt.cores[kk]
+                                for(i in 0 until A.modes[kk]) {
+                                    val xCore_i = xCore[i]
+                                    for(j in 0 until A.modes[kk]) {
+                                        psi[beta][gamma] += psiPrev[betaPrev][gammaPrev] *
+                                                            ACore[i*ACore.modeLength+j] *
+                                                            xCore_i[betaPrev,beta] *
+                                                            xCore[j][gammaPrev,gamma]
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-        //endregion
+            //endregion
 
-        //region Computation of phi
-        val phi = Array(currCore.cols) {
-            Array(currCore.cols) { ones(currCore.cols, 1) }
-        }
-        val phiPrev = Array(currCore.cols) {
-            Array(currCore.cols) { ones(currCore.cols, 1) }
-        }
-        for(kk in k until x.modes.size) {
-            //TODO: optimizations
-            for(beta in 0 until phiPrev.size) {
-                for(gamma in 0 until phiPrev[beta].size) {
-                    phiPrev[beta][gamma] = phi[beta][gamma]
-                }
+            //region Computation of phi
+            val phi = Array(currCore.cols) {
+                Array(currCore.cols) { ones(currCore.cols, 1) }
             }
+            val phiPrev = Array(currCore.cols) {
+                Array(currCore.cols) { ones(currCore.cols, 1) }
+            }
+            for(kk in k until x.modes.size) {
+                //TODO: optimizations
+                for(beta in 0 until phiPrev.size) {
+                    for(gamma in 0 until phiPrev[beta].size) {
+                        phiPrev[beta][gamma] = phi[beta][gamma]
+                    }
+                }
 
-            for(beta in 0 until phi.size) {
-                for(gamma in 0 until phi[beta].size) {
-                    phi[beta][gamma].fill(0.0)
+                for(beta in 0 until phi.size) {
+                    for(gamma in 0 until phi[beta].size) {
+                        phi[beta][gamma].fill(0.0)
 
-                    for(betaPrev in 0 until phiPrev.size) {
-                        for(gammaPrev in 0 until phiPrev[beta].size) {
-                            val ACore = A.tt.cores[kk]
-                            val xCore = x.tt.cores[kk]
-                            for(i in 0 until A.modes[kk]) {
-                                val xCore_i = xCore[i]
-                                for(j in 0 until A.modes[kk]) {
-                                    phi[beta][gamma] += phiPrev[betaPrev][gammaPrev] *
-                                                        ACore[i*ACore.modeLength+j] *
-                                                        xCore_i[betaPrev,beta] *
-                                                        xCore[j][gammaPrev,gamma]
+                        for(betaPrev in 0 until phiPrev.size) {
+                            for(gammaPrev in 0 until phiPrev[beta].size) {
+                                val ACore = A.tt.cores[kk]
+                                val xCore = x.tt.cores[kk]
+                                for(i in 0 until A.modes[kk]) {
+                                    val xCore_i = xCore[i]
+                                    for(j in 0 until A.modes[kk]) {
+                                        phi[beta][gamma] += phiPrev[betaPrev][gammaPrev] *
+                                                            ACore[i*ACore.modeLength+j] *
+                                                            xCore_i[betaPrev,beta] *
+                                                            xCore[j][gammaPrev,gamma]
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-        }
-        //endregion
+            //endregion
 
-        //Local solution
+            //Local solution
 
-        //region Computation of local right-hand side
-        //assemble full F=[ Q^T*f^_k(0); Q^T*f^_k(1) ... Q^T*f^_k(n_k) ]  matrix
-        var leftPart = eye(1)
-        for (l in 0 until k-1) {
-            var currFactor = SimpleMatrix(x.tt.cores[l].rows*f.tt.cores[l].rows, x.tt.cores[l].cols*f.tt.cores[l].cols)
-            for(m in 0 until x.modes[l])
-                currFactor += x.tt.cores[l][m].kron(f.tt.cores[l][m])
-            leftPart *= currFactor
-        }
-        var rightPart = eye(1)
-        for(l in x.modes.size-1 downTo k) {
-            var currFactor = SimpleMatrix(x.tt.cores[l].rows*f.tt.cores[l].rows, x.tt.cores[l].cols*f.tt.cores[l].cols)
-            for(m in 0 until x.modes[l])
-                currFactor += x.tt.cores[l][m].kron(f.tt.cores[l][m])
-            rightPart = currFactor * rightPart
-        }
-        val F = SimpleMatrix(currCore.modeLength*currCore.rows*currCore.cols, 1)
-        val middleAux = SimpleMatrix(currCore.rows, currCore.cols)
-        //TODO: can this be done more efficiently by computing a product leftpart*(something_that_gives_the_whole_result)*rightpart?
-        for(i in 0 until currCore.modeLength) {
-            for(alphaMinus in 0 until currCore.rows) {
-                for(alpha in 0 until currCore.cols) {
-                    middleAux[alphaMinus, alpha] = 1.0
-                    //TODO: check indexing!!!
-                    val elem = leftPart*middleAux.kron(f.tt.cores[k][i]) * rightPart
-                    assert(elem.numElements == 1)
-                    F[i*currCore.rows*currCore.cols+alphaMinus*currCore.cols+alpha] = elem[0]
-                    middleAux[alphaMinus, alpha] = 0.0
+            //region Computation of local right-hand side
+            //assemble full F=[ Q^T*f^_k(0); Q^T*f^_k(1) ... Q^T*f^_k(n_k) ]  matrix
+            var leftPart = eye(1)
+            for (l in 0 until k-1) {
+                var currFactor = SimpleMatrix(x.tt.cores[l].rows*f.tt.cores[l].rows, x.tt.cores[l].cols*f.tt.cores[l].cols)
+                for(m in 0 until x.modes[l])
+                    currFactor += x.tt.cores[l][m].kron(f.tt.cores[l][m])
+                leftPart *= currFactor
+            }
+            var rightPart = eye(1)
+            for(l in x.modes.size-1 downTo k) {
+                var currFactor = SimpleMatrix(x.tt.cores[l].rows*f.tt.cores[l].rows, x.tt.cores[l].cols*f.tt.cores[l].cols)
+                for(m in 0 until x.modes[l])
+                    currFactor += x.tt.cores[l][m].kron(f.tt.cores[l][m])
+                rightPart = currFactor * rightPart
+            }
+            val F = SimpleMatrix(currCore.modeLength*currCore.rows*currCore.cols, 1)
+            val middleAux = SimpleMatrix(currCore.rows, currCore.cols)
+            //TODO: can this be done more efficiently by computing a product leftpart*(something_that_gives_the_whole_result)*rightpart?
+            for(i in 0 until currCore.modeLength) {
+                for(alphaMinus in 0 until currCore.rows) {
+                    for(alpha in 0 until currCore.cols) {
+                        middleAux[alphaMinus, alpha] = 1.0
+                        //TODO: check indexing!!!
+                        val elem = leftPart*middleAux.kron(f.tt.cores[k][i]) * rightPart
+                        assert(elem.numElements == 1)
+                        F[i*currCore.rows*currCore.cols+alphaMinus*currCore.cols+alpha] = elem[0]
+                        middleAux[alphaMinus, alpha] = 0.0
+                    }
                 }
             }
-        }
-        //endregion
+            //endregion
 
-        //TODO: refine this criterion; the current threshold is taken from the original article, but maybe an adaptive/adjustable one would be better
-        val solveDirectly = currCore.modeLength*currCore.modeLength*currCore.cols*currCore.rows < 1000
-        lateinit var w: SimpleMatrix
-        if(solveDirectly) {
-            val dim = currCore.modeLength * currCore.rows * currCore.cols
-            val FullB = SimpleMatrix(dim, dim)
-            //TODO: Parallel computation!!!!!
-            //TODO: check indexing!!
-            for(betaMinus in 0 until currCore.rows){
-                for(beta in 0 until currCore.cols) {
-                    for(gammaMinus in 0 until currCore.rows) {
-                        for(gamma in 0 until currCore.cols) {
-                            for(i in 0 until currCore.modeLength) {
-                                for(j in 0 until currCore.modeLength) {
-                                    FullB[i*currCore.rows*currCore.cols+betaMinus*currCore.cols+beta, j*currCore.rows*currCore.cols+gammaMinus*currCore.cols+gamma] =
-                                            psi[betaMinus][gammaMinus]*currCore[i*currCore.modeLength+j]*phi[beta][gamma]
+            //TODO: refine this criterion; the current threshold is taken from the original article, but maybe an adaptive/adjustable one would be better
+            val solveDirectly = currCore.modeLength*currCore.modeLength*currCore.cols*currCore.rows < 1000
+            lateinit var w: SimpleMatrix
+            if(solveDirectly) {
+                val dim = currCore.modeLength * currCore.rows * currCore.cols
+                val FullB = SimpleMatrix(dim, dim)
+                //TODO: Parallel computation!!!!!
+                //TODO: check indexing!!
+                for(betaMinus in 0 until currCore.rows){
+                    for(beta in 0 until currCore.cols) {
+                        for(gammaMinus in 0 until currCore.rows) {
+                            for(gamma in 0 until currCore.cols) {
+                                for(i in 0 until currCore.modeLength) {
+                                    for(j in 0 until currCore.modeLength) {
+                                        FullB[i*currCore.rows*currCore.cols+betaMinus*currCore.cols+beta, j*currCore.rows*currCore.cols+gammaMinus*currCore.cols+gamma] =
+                                                psi[betaMinus][gammaMinus]*currCore[i*currCore.modeLength+j]*phi[beta][gamma]
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
 
-            //solve Bw=F
-            try {
-                w = FullB.solve(F)
-            } catch (e: SingularMatrixException) {
-                w = FullB.pseudoInverse() * F
+                //solve Bw=F
+                try {
+                    w = FullB.solve(F)
+                } catch (e: SingularMatrixException) {
+                    w = FullB.pseudoInverse() * F
+                }
+            } else {
+                val w0 = F.createLike()
+                //TODO: use current iterate of the core instead of a zero vector as the initial solution
+                w = ALSLocalReGMRES(psi, phi, A, w0, F, k, residualThreshold*0.1)
             }
-        } else {
-            val w0 = F.createLike()
-            //TODO: use current iterate of the core instead of a zero vector as the initial solution
-            w = ALSLocalReGMRES(psi, phi, A, w0, F, k, residualThreshold*0.1)
-        }
-        for (i in 0 until currCore.modeLength) {
-            for(beta_minus in 0 until currCore.rows) {
-                for (beta in 0 until currCore.cols) {
-                    currCore[i][beta_minus, beta] = w[i*currCore.rows*currCore.cols+beta_minus*currCore.cols+beta]
+            for (i in 0 until currCore.modeLength) {
+                for(beta_minus in 0 until currCore.rows) {
+                    for (beta in 0 until currCore.cols) {
+                        currCore[i][beta_minus, beta] = w[i*currCore.rows*currCore.cols+beta_minus*currCore.cols+beta]
+                    }
                 }
             }
-        }
 
-        if(forward) { //Left orthogonalization
-            x.tt.leftOrthogonalizeCore(k)
-        } else { //Right orthogonalization
-            x.tt.rightOrthogonalizeCore(k)
+            if(forward) { //Left orthogonalization
+                x.tt.leftOrthogonalizeCore(k)
+            } else { //Right orthogonalization
+                x.tt.rightOrthogonalizeCore(k)
+            }
         }
+        if((f-A*x).norm() <= residualThreshold) break
     }
-    TODO()
     return x
 }
 
