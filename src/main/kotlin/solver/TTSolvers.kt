@@ -327,45 +327,10 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
             }
         }
 
-        //TODO: extract the orthogonalizations into methods in either TT or CoreTensor
         if(forward) { //Left orthogonalization
-            val leftUnfolding = SimpleMatrix(currCore.modeLength*currCore.rows, currCore.cols)
-            for((i, mat) in currCore.data.withIndex()) {
-                leftUnfolding[i*currCore.rows, 0] = mat
-            }
-            val QR = leftUnfolding.qr()
-            val Q = QR.Q
-            val R = QR.R
-            val nextCore = x.tt.cores[k + 1]
-            for ((i, mat) in nextCore.data.withIndex()) {
-                nextCore.data[i] = R * mat
-            }
-            nextCore.rows = nextCore.data[0].numRows()
-            nextCore.cols = nextCore.data[0].numCols()
-            for(i in 0 until currCore.modeLength) {
-                currCore.data[i] = Q[i*currCore.rows..(i+1)*currCore.rows, 0..Q.numCols()]
-            }
-            currCore.rows = currCore.data[0].numRows()
-            currCore.cols = currCore.data[0].numCols()
+            x.tt.leftOrthogonalizeCore(k)
         } else { //Right orthogonalization
-            val rightUnfolding = SimpleMatrix(currCore.rows, currCore.modeLength*currCore.cols)
-            for((i, mat) in currCore.data.withIndex()) {
-                rightUnfolding[0, i*currCore.cols] = mat
-            }
-            val RQ_T = rightUnfolding.T().qr()
-            val R = RQ_T.R.T()
-            val Q = RQ_T.R.T()
-            val prevCore = x.tt.cores[k-1]
-            for ((i, mat) in prevCore.data.withIndex()) {
-                prevCore.data[i] *= R
-            }
-            prevCore.rows = prevCore.data[0].numRows()
-            prevCore.cols = prevCore.data[0].numCols()
-            for (i in 0 until currCore.modeLength) {
-                currCore.data[i] = Q[0..Q.numRows(), i*currCore.cols..(i+1)*currCore.cols]
-            }
-            currCore.rows = currCore.data[0].numRows()
-            currCore.cols = currCore.data[0].numCols()
+            x.tt.rightOrthogonalizeCore(k)
         }
     }
     TODO()

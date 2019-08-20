@@ -60,7 +60,7 @@ object mat {
 }
 
 object r {
-    operator fun get(vararg elements: Double) = doubleArrayOf(*elements)
+    operator fun get(vararg elements: Number) = elements.map { it.toDouble() }.toDoubleArray()
 }
 
 fun eye(size: Int) = SimpleMatrix.identity(size)

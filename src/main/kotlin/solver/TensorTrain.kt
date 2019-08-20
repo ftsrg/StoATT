@@ -34,6 +34,11 @@ class CoreTensor(val modeLength: Int, var rows: Int, var cols: Int) {
             }
         }
     }
+
+    fun updateDimensions() {
+        rows = data[0].numRows()
+        cols = data[0].numCols()
+    }
 }
 
 class TensorTrain(val cores: ArrayList<CoreTensor>) {
@@ -110,7 +115,48 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
     }
 
     operator fun plusAssign(T: TensorTrain) {
-        TODO()
+        assert(T.cores.size == this.cores.size) { "The operand trains must have the same number of core tensors!" }
+        if(cores.size == 0) return
+
+        //TODO: handle single core case
+
+        //calculate first core
+        val firstCoreThis = this.cores[0]
+        val firstCoreThat = T.cores[0]
+        assert(firstCoreThis.modeLength == firstCoreThat.modeLength)
+        { "First core mode lengths don't match! Left: ${firstCoreThis.modeLength}, Right: ${firstCoreThat.modeLength}" }
+        for(i in 0 until firstCoreThis.modeLength) {
+            firstCoreThis.data[i] = firstCoreThis.data[i].combine(firstCoreThis.rows, firstCoreThis.cols, firstCoreThat.data[i])
+        }
+        firstCoreThis.updateDimensions()
+
+        //calculate middle cores
+        for(i in 1 until cores.size-1) {
+            val currCoreThis = this.cores[i]
+            val currCoreThat = T.cores[i]
+            assert(currCoreThis.modeLength == currCoreThat.modeLength)
+            { "Cores with index $i don't have matching mode lengths! Left: ${currCoreThis.modeLength}, right: ${currCoreThat.modeLength}" }
+
+            val newCore = CoreTensor(
+                    currCoreThis.modeLength,
+                    currCoreThis.rows + currCoreThat.rows,
+                    currCoreThis.cols + currCoreThat.cols)
+
+            for(j in 0 until currCoreThis.modeLength) {
+                currCoreThis.data[j] = currCoreThis.data[j].combine(currCoreThis.rows, currCoreThis.cols, currCoreThat.data[j])
+            }
+            currCoreThis.updateDimensions()
+        }
+
+        //calculate last core
+        val lastCoreThis = this.cores.last()
+        val lastCoreThat = T.cores.last()
+        assert(lastCoreThis.modeLength == lastCoreThat.modeLength)
+        { "Last core mode lengths don't match! Left: ${lastCoreThis.modeLength}, Right: ${lastCoreThat.modeLength}" }
+        for(i in 0 until lastCoreThis.modeLength) {
+            lastCoreThis.data[i] = lastCoreThis.data[i].combine(lastCoreThis.rows, lastCoreThis.cols, lastCoreThat.data[i])
+        }
+        lastCoreThis.updateDimensions()
     }
 
     operator fun minus(T: TensorTrain): TensorTrain {
@@ -118,7 +164,7 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
     }
 
     operator fun minusAssign(T: TensorTrain) {
-        TODO()
+        this += (-1.0)*T //TODO: optimize
     }
 
     operator fun times(d: Double): TensorTrain {
@@ -133,13 +179,65 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
         return sqrt(scalarProduct(this)) //TODO: can it be optimized? cache?
     }
 
+    fun leftOrthogonalizeCore(coreIdx: Int) {
+        if(coreIdx == cores.size-1) throw IndexOutOfBoundsException("The last core cannot be left orthogonalized!")
+        if(coreIdx < 0) throw IndexOutOfBoundsException("Index cannot be negative!")
+        if(coreIdx >= cores.size) throw IndexOutOfBoundsException()
+
+        val core = cores[coreIdx]
+        val leftUnfolding = SimpleMatrix(core.modeLength*core.rows, core.cols)
+        for((i, mat) in core.data.withIndex()) {
+            leftUnfolding[i*core.rows, 0] = mat
+        }
+        val QR = leftUnfolding.qr()
+        val Q = QR.Q
+        val R = QR.R
+        val nextCore = this.cores[coreIdx + 1]
+        for ((i, mat) in nextCore.data.withIndex()) {
+            nextCore.data[i] = R * mat
+        }
+        nextCore.rows = nextCore.data[0].numRows()
+        nextCore.cols = nextCore.data[0].numCols()
+        for(i in 0 until core.modeLength) {
+            core.data[i] = Q[i*core.rows..(i+1)*core.rows, 0..Q.numCols()]
+        }
+        core.rows = core.data[0].numRows()
+        core.cols = core.data[0].numCols()
+    }
+
+    fun rightOrthogonalizeCore(coreIdx: Int) {
+        if(coreIdx == 0) throw IndexOutOfBoundsException("The first core cannot be right orthogonalized!")
+        if(coreIdx < 0) throw IndexOutOfBoundsException("Index cannot be negative!")
+        if(coreIdx >= cores.size) throw IndexOutOfBoundsException()
+
+        val core = cores[coreIdx]
+        val rightUnfolding = SimpleMatrix(core.rows, core.modeLength*core.cols)
+        for((i, mat) in core.data.withIndex()) {
+            rightUnfolding[0, i*core.cols] = mat
+        }
+        val RQ_T = rightUnfolding.T().qr()
+        val R = RQ_T.R.T()
+        val Q = RQ_T.R.T()
+        val prevCore = this.cores[coreIdx-1]
+        for ((i, mat) in prevCore.data.withIndex()) {
+            prevCore.data[i] *= R
+        }
+        prevCore.rows = prevCore.data[0].numRows()
+        prevCore.cols = prevCore.data[0].numCols()
+        for (i in 0 until core.modeLength) {
+            core.data[i] = Q[0..Q.numRows(), i*core.cols..(i+1)*core.cols]
+        }
+        core.rows = core.data[0].numRows()
+        core.cols = core.data[0].numCols()
+    }
+
     /**
      * Performs SVD-based Tensor Train rounding
      * @param accuracy Relative accuracy of the rounding procedure
      */
     fun round(accuracy: Double) {
         //init
-        val delta = accuracy / Math.sqrt((cores.size-1).toDouble()) * frobenius()
+        val delta = accuracy / sqrt((cores.size-1).toDouble()) * frobenius()
 
         //right-to-left orthogonalization
         for(i in cores.lastIndex downTo 1) {
