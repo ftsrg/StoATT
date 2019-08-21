@@ -69,7 +69,7 @@ class FaultTree(val topNode: FaultTreeNode) {
         val M = TTSquareMatrix(TensorTrain(cores), Array(events.size) { 2 })
         val stateMaskVector = getStateMaskVector()
         val maskMatrix = stateMaskVector.outerProduct(stateMaskVector)
-        return (M - TTSquareMatrix.diag(M * TTVector.ones(M.modes))).hadamard(maskMatrix)
+        return (M - TTSquareMatrix.diag(M * TTVector.ones(M.modes))).hadamard(maskMatrix) + TTSquareMatrix.diag(TTVector.ones(stateMaskVector.modes)-stateMaskVector)
     }
 
     public fun getStateMaskVector(): TTVector {
