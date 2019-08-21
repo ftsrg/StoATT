@@ -217,7 +217,7 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
         }
         val RQ_T = rightUnfolding.T().qr()
         val R = RQ_T.R.T()
-        val Q = RQ_T.R.T()
+        val Q = RQ_T.Q.T()
         val prevCore = this.cores[coreIdx-1]
         for ((i, mat) in prevCore.data.withIndex()) {
             prevCore.data[i] *= R

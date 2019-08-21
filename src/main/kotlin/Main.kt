@@ -28,31 +28,52 @@ fun main(args: Array<String>) {
             """.trimIndent()
 
     val Ft = galileoParser.parse(galTest.byteInputStream())
-    val rateMtx = Ft.getTransientGenerator()
+    val perturbedGeneratorMatrix = Ft.getTransientGenerator()
+    perturbedGeneratorMatrix.tt.round(0.0001)
+    val stateMaskVector = Ft.getStateMaskVector()
+    stateMaskVector.tt.round(0.0001)
+
+    println("ALS")
+    val r = 2
+    val ones = TTVector.ones(stateMaskVector.modes)
+    var x0 = TTVector.ones(stateMaskVector.modes)
+    for (i in 0 until r) {
+        x0 = x0+ x0.hadamard(ones)
+    }
+    x0 /= r.toDouble()
+    val alsRes = ALSSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0, residualThreshold = 0.0001*stateMaskVector.norm(), maxSweeps = 50)
+    alsRes.printElements()
+    println()
+    println(alsRes.tt.cores.map { it.rows })
+    println()
+    println()
 
     println("GMRES without preconditioner:")
-    val stateMaskVector = Ft.getStateMaskVector()
-    rateMtx.tt.round(0.0001)
-    stateMaskVector.tt.round(0.0001)
-    val res = TTGMRES(rateMtx, stateMaskVector, TTVector.zeros(stateMaskVector.modes), 0.0001)
+    val res = TTGMRES(perturbedGeneratorMatrix, stateMaskVector, TTVector.zeros(stateMaskVector.modes), 0.0001)
     res.printElements()
+    println()
+    println(res.tt.cores.map { it.rows })
     println()
     println()
 
     println("GMRES with preconditioner:")
-    val prec = jacobiPreconditioner(rateMtx, stateMaskVector)
-    val precdMtx = prec * rateMtx
+    val prec = jacobiPreconditioner(perturbedGeneratorMatrix, stateMaskVector)
+    val precdMtx = prec * perturbedGeneratorMatrix
     precdMtx.tt.round(0.0001)
     val precdVect = prec*stateMaskVector
     precdVect.tt.round(0.0001)
     val resPrecd = TTGMRES(precdMtx, precdVect, TTVector.zeros(stateMaskVector.modes), 0.0001)
     resPrecd.printElements()
     println()
+    println(resPrecd.tt.cores.map { it.rows })
+    println()
     println()
 
     println("TT-Jacobi: ")
-    val res2 = TTJacobi(rateMtx, stateMaskVector, 0.001 * stateMaskVector.norm(), 0.001, stateMaskVector)
+    val res2 = TTJacobi(perturbedGeneratorMatrix, stateMaskVector, 0.001 * stateMaskVector.norm(), 0.001, stateMaskVector)
     res2.printElements()
+    println()
+    println(res2.tt.cores.map { it.rows })
 
     println()
     println("MTFF = ${-res2[0]}")

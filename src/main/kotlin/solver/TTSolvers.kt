@@ -5,7 +5,7 @@ import org.ejml.simple.SimpleMatrix
 import kotlin.math.abs
 import kotlin.math.sqrt
 
-//TODO: do something with non-definite matrices
+//TODO: do something with vectors with elements with different signs
 /**
  * Inverts the elements of a TT-Vector using the Newton-Schulz iterative algorithm
  * @param V Vector to invert in solver.TensorTrain format
@@ -107,7 +107,7 @@ fun TTGMRES(A: TTSquareMatrix, b: TTVector, x0: TTVector, eps: Double, maxIter: 
         h[Pair(j, j - 1)] = norm
         V.add(w / norm)
         val H = SimpleMatrix(j + 1, j)
-        H.fill { i, k -> h.getOrDefault(Pair(i, k), 0.0) } //TODO: waste of time, the data should already be written into the H matrix instead of the dictionary
+        H.fill { i, k -> h.getOrDefault(Pair(i, k), 0.0) } //TODO: wastes time, the data should instantly be written into the H matrix instead of the dictionary
 
         val solv = solveWithRots(H, beta) //TODO: use solution from prev
         r = solv.resNorm
@@ -118,7 +118,7 @@ fun TTGMRES(A: TTSquareMatrix, b: TTVector, x0: TTVector, eps: Double, maxIter: 
             break
     }
     for (i in 0 until y.numElements) {
-        println("Real res: ${(A * x - b).norm()}, computed res: ${R[i]}")
+//        println("Real res: ${(A * x - b).norm()}, computed res: ${R[i]}")
         x = x + y[i] * V[i]
     }
     return x
@@ -157,19 +157,19 @@ private fun solveWithRots(H: SimpleMatrix, beta: Double): MatSolution {
     return MatSolution(y, residualNorm)
 }
 
-fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.modes), residualThreshold: Double, maxSweeps: Int): TTVector {
+fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.modes), residualThreshold: Double, maxSweeps: Int): TTVector {
     // Reference for the algorithm:
     // I. V. OSELEDETS AND S. V. DOLGOV - Solution of Linear Systems and Matrix Inversion in the TT-Format
 
     val x = x0.copy()
-    for (i in x.tt.cores.size - 2 downTo 0) {
+    for (i in x.tt.cores.size - 2 downTo 1) {
         x.tt.rightOrthogonalizeCore(i)
     }
 
     //sweep through the cores forward and backward
     val sweepRange = //list of (core index: Int, forward: Bool)
             (0 until x.modes.size-1).toList().map { it to true } +
-            (x.modes.size downTo 1).toList().map { it to false }
+            (x.modes.size-1 downTo 1).toList().map { it to false }
     val psiCache = Array<Array<Array<SimpleMatrix>>?>(x.modes.size) {null}
     psiCache[0] = Array(1) { Array(1) { mat[r[1]] } }
     val phiCache = Array<Array<Array<SimpleMatrix>>?>(x.modes.size) {null}
@@ -185,13 +185,12 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
                 if(idx == 0) return
                 if(psiCache[idx-1] == null) computePsi(idx-1)
                 val psiPrev = psiCache[idx - 1]!!
-                val xCore = x.tt.cores[idx]
-                val ACore = A.tt.cores[idx]
-                if(psiCache[idx] == null)
-                    psiCache[idx] = Array(xCore.rows) { Array(xCore.rows) { SimpleMatrix(1, ACore.rows) } }
+                val xCore = x.tt.cores[idx-1]
+                val ACore = A.tt.cores[idx-1]
+                psiCache[idx] = Array(xCore.cols) { Array(xCore.cols) { SimpleMatrix(1, ACore.cols) } }
                 val psiCurr = psiCache[idx]!!
-                for(beta in 0 until xCore.rows) {
-                    for(gamma in 0 until xCore.rows) {
+                for(beta in 0 until xCore.cols) {
+                    for(gamma in 0 until xCore.cols) {
                         psiCurr[beta][gamma].fill(0.0)
                         for(i in 0 until xCore.modeLength) {
                             for(j in 0 until xCore.modeLength) {
@@ -213,18 +212,17 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
                 if(idx == phiCache.size-1) return
                 if(phiCache[idx+1] == null) computePhi(idx+1)
                 val phiNext = phiCache[idx+1]!!
-                val xCore = x.tt.cores[idx]
-                val ACore = A.tt.cores[idx]
-                if(phiCache[idx] == null)
-                    phiCache[idx] = Array(xCore.cols) { Array(xCore.cols) { SimpleMatrix(ACore.cols, 1) } }
+                val xCore = x.tt.cores[idx+1]
+                val ACore = A.tt.cores[idx+1]
+                phiCache[idx] = Array(xCore.rows) { Array(xCore.rows) { SimpleMatrix(ACore.rows, 1) } }
                 val phiCurr = phiCache[idx]!!
-                for(beta in 0 until xCore.cols) {
-                    for(gamma in 0 until xCore.cols) {
+                for(beta in 0 until xCore.rows) {
+                    for(gamma in 0 until xCore.rows) {
                         phiCurr[beta][gamma].fill(0.0)
                         for(i in 0 until xCore.modeLength) {
                             for(j in 0 until xCore.modeLength) {
                                 for(betaNext in 0 until phiNext.size) {
-                                    for(gammaNext in 0 until phiNext[beta].size) {
+                                    for(gammaNext in 0 until phiNext[betaNext].size) {
                                         phiCurr[beta][gamma] += ACore[i*xCore.modeLength+j] *
                                                                 phiNext[betaNext][gammaNext] *
                                                                 xCore[i][beta, betaNext] *
@@ -247,14 +245,14 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
             //region Computation of local right-hand side
             //assemble full F=[ Q^T*f^_k(0); Q^T*f^_k(1) ... Q^T*f^_k(n_k) ]  matrix
             var leftPart = eye(1)
-            for (l in 0 until k-1) {
+            for (l in 0 until k) {
                 var currFactor = SimpleMatrix(x.tt.cores[l].rows*f.tt.cores[l].rows, x.tt.cores[l].cols*f.tt.cores[l].cols)
                 for(m in 0 until x.modes[l])
                     currFactor += x.tt.cores[l][m].kron(f.tt.cores[l][m])
                 leftPart *= currFactor
             }
             var rightPart = eye(1)
-            for(l in x.modes.size-1 downTo k) {
+            for(l in x.modes.size-1 downTo k+1) {
                 var currFactor = SimpleMatrix(x.tt.cores[l].rows*f.tt.cores[l].rows, x.tt.cores[l].cols*f.tt.cores[l].cols)
                 for(m in 0 until x.modes[l])
                     currFactor += x.tt.cores[l][m].kron(f.tt.cores[l][m])
@@ -279,20 +277,21 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
 
             //TODO: refine this criterion; the current threshold is taken from the original article, but maybe an adaptive/adjustable one would be better
             val solveDirectly = currCore.modeLength*currCore.modeLength*currCore.cols*currCore.rows < 1000
+            val ACore = A.tt.cores[k]
             lateinit var w: SimpleMatrix
             if(solveDirectly) {
                 val dim = currCore.modeLength * currCore.rows * currCore.cols
                 val FullB = SimpleMatrix(dim, dim)
                 //TODO: Parallel computation!!!!!
                 //TODO: check indexing!!
-                for(betaMinus in 0 until currCore.rows){
+                for(betaMinus in 0 until currCore.rows) {
                     for(beta in 0 until currCore.cols) {
                         for(gammaMinus in 0 until currCore.rows) {
                             for(gamma in 0 until currCore.cols) {
                                 for(i in 0 until currCore.modeLength) {
                                     for(j in 0 until currCore.modeLength) {
-                                        FullB[i*currCore.rows*currCore.cols+betaMinus*currCore.cols+beta, j*currCore.rows*currCore.cols+gammaMinus*currCore.cols+gamma] =
-                                                psi[betaMinus][gammaMinus]*currCore[i*currCore.modeLength+j]*phi[beta][gamma]
+                                        FullB[i * currCore.rows * currCore.cols + betaMinus * currCore.cols + beta, j * currCore.rows * currCore.cols + gammaMinus * currCore.cols + gamma] =
+                                                psi[betaMinus][gammaMinus] * ACore[i * currCore.modeLength + j] * phi[beta][gamma]
                                     }
                                 }
                             }
@@ -301,10 +300,10 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
                 }
 
                 //solve Bw=F
-                try {
-                    w = FullB.solve(F)
+                w = try {
+                    FullB.solve(F)
                 } catch (e: SingularMatrixException) {
-                    w = FullB.pseudoInverse() * F
+                    FullB.pseudoInverse() * F
                 }
             } else {
                 val w0 = F.createLike()
@@ -325,7 +324,8 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
                 x.tt.rightOrthogonalizeCore(k)
             }
         }
-        if((f-A*x).norm() <= residualThreshold) break
+        val resNorm = (f - A * x).norm()
+        if(resNorm <= residualThreshold) break
     }
     return x
 }
@@ -359,7 +359,7 @@ private fun ALSLocalReGMRES(psi: Array<Array<SimpleMatrix>>, phi: Array<Array<Si
         for(i in 0 until n_k) {
             for(gamma_minus in 0 until r_kminus) {
                 //TODO: check index ranges
-                YMat[0, i*r_kminus+gamma_minus] = y[i*r_kminus*r_k+gamma_minus*r_k..i*r_kminus*r_k+(gamma_minus+1)*r_k, 0..0]
+                YMat[0, i*r_kminus+gamma_minus] = y[i*r_kminus*r_k+gamma_minus*r_k..i*r_kminus*r_k+(gamma_minus+1)*r_k, 0..1]
             }
         }
         val YPrime = phiMat*YMat
