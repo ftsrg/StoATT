@@ -170,6 +170,10 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
     val sweepRange = //list of (core index: Int, forward: Bool)
             (0 until x.modes.size-1).toList().map { it to true } +
             (x.modes.size downTo 1).toList().map { it to false }
+    val psiCache = Array<Array<Array<SimpleMatrix>>?>(x.modes.size) {null}
+    psiCache[0] = Array(1) { Array(1) { mat[r[1]] } }
+    val phiCache = Array<Array<Array<SimpleMatrix>>?>(x.modes.size) {null}
+    phiCache[phiCache.size-1]  = Array(1) {Array(1) { mat[r[1]]}}
     for (sweep in 0..maxSweeps) {
         for ((k, forward) in sweepRange) {
 
@@ -177,34 +181,26 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
             //TODO: parallel computation of elements
             //TODO: dynamic computation of psi and phi (reuse previous results)
 
-            //region Computation of psi
-            val psi = Array(currCore.rows) {
-                Array(currCore.rows) { ones(1, currCore.rows) }
-            }
-            val psiPrev = Array(currCore.rows) {
-                Array(currCore.rows) { ones(1, currCore.rows) }
-            }
-            for (kk in 0 until k - 1) {
-                //TODO: optimizations
-                for(beta in 0 until psiPrev.size)
-                    for(gamma in 0 until psiPrev[beta].size)
-                        psiPrev[beta][gamma] = psi[beta][gamma]
-
-                for(beta in 0 until psi.size) {
-                    for(gamma in 0 until psi[beta].size) {
-                        psi[beta][gamma].fill(0.0)
-
-                        for(betaPrev in 0 until psiPrev.size) {
-                            for(gammaPrev in 0 until psiPrev[beta].size) {
-                                val ACore = A.tt.cores[kk]
-                                val xCore = x.tt.cores[kk]
-                                for(i in 0 until A.modes[kk]) {
-                                    val xCore_i = xCore[i]
-                                    for(j in 0 until A.modes[kk]) {
-                                        psi[beta][gamma] += psiPrev[betaPrev][gammaPrev] *
-                                                            ACore[i*ACore.modeLength+j] *
-                                                            xCore_i[betaPrev,beta] *
-                                                            xCore[j][gammaPrev,gamma]
+            fun computePsi(idx: Int) {
+                if(idx == 0) return
+                if(psiCache[idx-1] == null) computePsi(idx-1)
+                val psiPrev = psiCache[idx - 1]!!
+                val xCore = x.tt.cores[idx]
+                val ACore = A.tt.cores[idx]
+                if(psiCache[idx] == null)
+                    psiCache[idx] = Array(xCore.rows) { Array(xCore.rows) { SimpleMatrix(1, ACore.rows) } }
+                val psiCurr = psiCache[idx]!!
+                for(beta in 0 until xCore.rows) {
+                    for(gamma in 0 until xCore.rows) {
+                        psiCurr[beta][gamma].fill(0.0)
+                        for(i in 0 until xCore.modeLength) {
+                            for(j in 0 until xCore.modeLength) {
+                                for (betaPrev in 0 until psiPrev.size) {
+                                    for (gammaPrev in 0 until psiPrev[betaPrev].size) {
+                                        psiCurr[beta][gamma] += psiPrev[betaPrev][gammaPrev] *
+                                                                ACore[i*xCore.modeLength+j] *
+                                                                xCore[i][betaPrev, beta] *
+                                                                xCore[j][gammaPrev, gamma]
                                     }
                                 }
                             }
@@ -212,38 +208,27 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
                     }
                 }
             }
-            //endregion
 
-            //region Computation of phi
-            val phi = Array(currCore.cols) {
-                Array(currCore.cols) { ones(currCore.cols, 1) }
-            }
-            val phiPrev = Array(currCore.cols) {
-                Array(currCore.cols) { ones(currCore.cols, 1) }
-            }
-            for(kk in k until x.modes.size) {
-                //TODO: optimizations
-                for(beta in 0 until phiPrev.size) {
-                    for(gamma in 0 until phiPrev[beta].size) {
-                        phiPrev[beta][gamma] = phi[beta][gamma]
-                    }
-                }
-
-                for(beta in 0 until phi.size) {
-                    for(gamma in 0 until phi[beta].size) {
-                        phi[beta][gamma].fill(0.0)
-
-                        for(betaPrev in 0 until phiPrev.size) {
-                            for(gammaPrev in 0 until phiPrev[beta].size) {
-                                val ACore = A.tt.cores[kk]
-                                val xCore = x.tt.cores[kk]
-                                for(i in 0 until A.modes[kk]) {
-                                    val xCore_i = xCore[i]
-                                    for(j in 0 until A.modes[kk]) {
-                                        phi[beta][gamma] += phiPrev[betaPrev][gammaPrev] *
-                                                            ACore[i*ACore.modeLength+j] *
-                                                            xCore_i[betaPrev,beta] *
-                                                            xCore[j][gammaPrev,gamma]
+            fun computePhi(idx: Int) {
+                if(idx == phiCache.size-1) return
+                if(phiCache[idx+1] == null) computePhi(idx+1)
+                val phiNext = phiCache[idx+1]!!
+                val xCore = x.tt.cores[idx]
+                val ACore = A.tt.cores[idx]
+                if(phiCache[idx] == null)
+                    phiCache[idx] = Array(xCore.cols) { Array(xCore.cols) { SimpleMatrix(ACore.cols, 1) } }
+                val phiCurr = phiCache[idx]!!
+                for(beta in 0 until xCore.cols) {
+                    for(gamma in 0 until xCore.cols) {
+                        phiCurr[beta][gamma].fill(0.0)
+                        for(i in 0 until xCore.modeLength) {
+                            for(j in 0 until xCore.modeLength) {
+                                for(betaNext in 0 until phiNext.size) {
+                                    for(gammaNext in 0 until phiNext[beta].size) {
+                                        phiCurr[beta][gamma] += ACore[i*xCore.modeLength+j] *
+                                                                phiNext[betaNext][gammaNext] *
+                                                                xCore[i][beta, betaNext] *
+                                                                xCore[j][gamma, gammaNext]
                                     }
                                 }
                             }
@@ -251,7 +236,11 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.zeros(f.mod
                     }
                 }
             }
-            //endregion
+
+            computePsi(k)
+            val psi = psiCache[k]!!
+            computePhi(k)
+            val phi = phiCache[k]!!
 
             //Local solution
 
