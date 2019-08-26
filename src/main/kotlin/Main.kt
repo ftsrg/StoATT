@@ -11,7 +11,7 @@ fun main(args: Array<String>) {
     val galTest =
             """
                 toplevel MyTree;
-                MyTree or EAndD AAndFAndBOrC TriAnd;
+                MyTree or EAndD AAndFAndBOrC MultiAnd;
 
                 EventA lambda=.2;
                 EventB lambda=.1;
@@ -19,12 +19,13 @@ fun main(args: Array<String>) {
                 EventD lambda=.3;
                 EventE lambda=.423;
                 EventF lambda=0.5;
+                EventG lambda=0.56;
 
                 EAndD and EventE EventD;
-                /* (((a and f) and (b or c)) or (b and c and e)) */
+                /* (((a and f) and (b or c)) or (b and c and e and g)) */
                 AAndFAndBOrC and EventA EventF BOrC;
                 BOrC or EventB EventC;
-                TriAnd and EventB EventC EventE;
+                MultiAnd and EventB EventC EventE EventG;
             """.trimIndent()
 
     val Ft = galileoParser.parse(galTest.byteInputStream())
@@ -33,50 +34,58 @@ fun main(args: Array<String>) {
     val stateMaskVector = Ft.getStateMaskVector()
     stateMaskVector.tt.round(0.0001)
 
-    println("ALS")
-    val r = 2
+    println("ALS:")
+    val r = 3
     val ones = TTVector.ones(stateMaskVector.modes)
     var x0 = TTVector.ones(stateMaskVector.modes)
     for (i in 0 until r) {
         x0 = x0+ x0.hadamard(ones)
     }
     x0 /= r.toDouble()
-    val alsRes = ALSSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0, residualThreshold = 0.0001*stateMaskVector.norm(), maxSweeps = 50)
-    alsRes.printElements()
-    println()
-    println(alsRes.tt.cores.map { it.rows })
-    println()
-    println()
+    val residualThreshold = 0.0001 * stateMaskVector.norm()
+    val alsRes = ALSSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0, residualThreshold = residualThreshold, maxSweeps = 10)
+    report(perturbedGeneratorMatrix, stateMaskVector, alsRes, residualThreshold)
+
+    println("DMRG:")
+    val r0 = 1
+    var x0DMRG = TTVector.ones(stateMaskVector.modes)
+    for (i in 0 until r) {
+        x0DMRG = x0DMRG+ x0DMRG.hadamard(ones)
+    }
+    x0 /= r.toDouble()
+    val dmrgRes = DMRGSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0DMRG, residualThreshold = residualThreshold, maxSweeps = 10)
+    report(perturbedGeneratorMatrix, stateMaskVector, dmrgRes, residualThreshold)
 
     println("GMRES without preconditioner:")
     val res = TTGMRES(perturbedGeneratorMatrix, stateMaskVector, TTVector.zeros(stateMaskVector.modes), 0.0001)
-    res.printElements()
-    println()
-    println(res.tt.cores.map { it.rows })
-    println()
-    println()
+    report(perturbedGeneratorMatrix, stateMaskVector, res, residualThreshold)
 
-    println("GMRES with preconditioner:")
+    println("GMRES with Jacobi preconditioner:")
     val prec = jacobiPreconditioner(perturbedGeneratorMatrix, stateMaskVector)
     val precdMtx = prec * perturbedGeneratorMatrix
     precdMtx.tt.round(0.0001)
     val precdVect = prec*stateMaskVector
     precdVect.tt.round(0.0001)
     val resPrecd = TTGMRES(precdMtx, precdVect, TTVector.zeros(stateMaskVector.modes), 0.0001)
-    resPrecd.printElements()
-    println()
-    println(resPrecd.tt.cores.map { it.rows })
-    println()
-    println()
+    report(perturbedGeneratorMatrix, stateMaskVector, resPrecd, residualThreshold)
 
     println("TT-Jacobi: ")
-    val res2 = TTJacobi(perturbedGeneratorMatrix, stateMaskVector, 0.001 * stateMaskVector.norm(), 0.001, stateMaskVector)
-    res2.printElements()
-    println()
-    println(res2.tt.cores.map { it.rows })
+    val res2 = TTJacobi(perturbedGeneratorMatrix, stateMaskVector, 0.0001 * stateMaskVector.norm(), 0.00001, stateMaskVector)
+    report(perturbedGeneratorMatrix, stateMaskVector, res2, residualThreshold)
 
     println()
     println("MTFF = ${-res2[0]}")
+    println()
+}
+
+fun report(A: TTSquareMatrix, b: TTVector, x: TTVector, threshold: Double) {
+    println("results:")
+    val resNorm = (b-A*x).norm()
+    println("residual norm: $resNorm ${if(resNorm<threshold) "<" else ">"} $threshold (threshold)")
+    print("solution vector: ")
+    x.printElements(); println()
+    print("TT ranks of the result: ${x.tt.cores.map { it.rows }}")
+    println()
     println()
 }
 

@@ -1,6 +1,7 @@
 package solver
 import org.ejml.simple.SimpleMatrix
 import org.ejml.simple.SimpleMatrix.END
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.sqrt
 
@@ -176,7 +177,8 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
     }
 
     fun frobenius(): Double {
-        return sqrt(scalarProduct(this)) //TODO: can it be optimized? cache?
+        //TODO: abs used to protect against NaNs coming from sqrt of negative number resulting from floating point precision error; maybe not the best solution
+        return sqrt(abs(scalarProduct (this))) //TODO: can it be optimized? cache?
     }
 
     fun leftOrthogonalizeCore(coreIdx: Int) {
@@ -331,7 +333,6 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
                 }
 
                 return@foldIndexed acc + prod
-//                return@foldIndexed acc + v * matA.kron(otherCore[idx])
             }
         }
         assert(v.numElements == 1)
