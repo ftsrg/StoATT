@@ -4,14 +4,65 @@ import hu.bme.mit.delta.mdd.MddBuilder
 import hu.bme.mit.delta.mdd.MddHandle
 import hu.bme.mit.delta.mdd.MddVariableDescriptor
 import hu.bme.mit.delta.mdd.MddVariableOrder
+import solver.CoreTensor
+import solver.eye
+import solver.mat
+import solver.r
 
 class BasicEvent(val rate: Double, val name: String): FaultTreeNode() {
+    companion object {
+
+        class BasicEventVar(val event: BasicEvent): DFTVar(event.descriptor) {
+
+            override fun getBaseCore(prevRank: Int, isLast: Boolean): CoreTensor {
+                when {
+                    prevRank == 1 -> {
+                        val newCore = CoreTensor(4, 1, 2)
+                        newCore.data[0] = mat[r[0.0, 1.0]]
+                        newCore.data[1] = mat[r[event.rate, 0.0]]
+                        //newCore.data[2] = mat[r[0.0, 0.0]]
+                        newCore.data[3] = mat[r[0.0, 1.0]]
+                        return newCore
+                    }
+                    isLast -> {
+                        val newCore = CoreTensor(4, 2, 1)
+                        newCore.data[0] = mat[r[1.0], r[0.0]]
+                        newCore.data[1] = mat[r[0.0], r[event.rate]]
+                        //newCore.data[2] = mat[r[0.0], r[0.0]]
+                        newCore.data[3] = mat[r[1.0], r[0.0]]
+                        return newCore
+                    }
+                    else -> {
+                        val newCore = CoreTensor(4, 2, 2)
+                        newCore[0] = eye(2)
+                        newCore[1] = mat[
+                                r[0.0, 0.0],
+                                r[event.rate, 0.0]
+                        ]
+                        //newCore[2] = SimpleMatrix(2,2)
+                        newCore[3] = eye(2)
+                        return newCore
+                    }
+                }
+            }
+
+        }
+
+    }
+
+    private val descriptor = MddVariableDescriptor.create(name, 2)
+    override fun getVariables(): HashMap<MddVariableDescriptor, DFTVar> {
+        return hashMapOf(descriptor to BasicEventVar(this))
+    }
+
+    override fun getOrderingWeight(): Double {
+        return 0.5
+    }
+
     override fun nonFailureAsMdd(order: MddVariableOrder): MddHandle {
         val builder = MddBuilder<Boolean>(order.createSignatureFromTraceInfos(listOf(name)))
         return builder.build(arrayOf(0), true)
     }
-
-    val mddVariable = MddVariableDescriptor.create(name, 2)
 
     override fun failureAsMdd(order: MddVariableOrder): MddHandle {
         val builder = MddBuilder<Boolean>(order.createSignatureFromTraceInfos(listOf(name)))

@@ -143,6 +143,18 @@ public class GalileoBaseListener implements GalileoListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitAnd(GalileoParser.AndContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterOf(GalileoParser.OfContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitOf(GalileoParser.OfContext ctx) { }
 
 	/**
 	 * {@inheritDoc}

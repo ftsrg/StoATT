@@ -44,6 +44,12 @@ class CoreTensor(val modeLength: Int, var rows: Int, var cols: Int) {
 
 class TensorTrain(val cores: ArrayList<CoreTensor>) {
 
+    companion object {
+        fun ttCross() {
+            TODO()
+        }
+    }
+
     constructor() : this(arrayListOf())
 
     operator fun get(vararg indices: Int): Double {

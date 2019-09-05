@@ -544,13 +544,43 @@ fun DMRGSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.mod
         }
 
         val resNorm = (f - A * x).norm()
-        println(resNorm)
         if(resNorm <= residualThreshold) return x
     }
     return x
 }
 
-fun AMEn(A: TTSquareMatrix, b: TTVector): TTVector {
-    TODO()
+fun AMEn(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.modes), residualThreshold: Double, maxSweeps: Int): TTVector {
+    val x = x0.copy()
+    for (i in x.tt.cores.size - 2 downTo 1) {
+        x.tt.rightOrthogonalizeCore(i)
+    }
+
+    //sweep through the cores forward and backward
+    val sweepRange = //list of (core index: Int, forward: Bool)
+            (0 until x.modes.size-1).toList().map { it to true } +
+            (x.modes.size-1 downTo 1).toList().map { it to false }
+    val psiCache = Array<Array<Array<SimpleMatrix>>?>(x.modes.size) {null}
+    psiCache[0] = Array(1) { Array(1) { mat[r[1]] } }
+    val phiCache = Array<Array<Array<SimpleMatrix>>?>(x.modes.size) {null}
+    phiCache[phiCache.size-1] = Array(1) {Array(1) { mat[r[1]]}}
+    for (sweep in 0..maxSweeps) {
+        for ((k, forward) in sweepRange) {
+
+            applyALSStep(A, x, f, k, psiCache, phiCache, residualThreshold)
+
+            TODO("Basis enrichment")
+
+            
+            
+            if (forward) { //Left orthogonalization
+                x.tt.leftOrthogonalizeCore(k)
+            } else { //Right orthogonalization
+                x.tt.rightOrthogonalizeCore(k)
+            }
+        }
+        val resNorm = (f - A * x).norm()
+        if(resNorm <= residualThreshold) return x
+    }
+    return x
 }
 

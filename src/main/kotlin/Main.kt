@@ -8,6 +8,24 @@ import kotlin.math.sign
 
 fun main(args: Array<String>) {
 
+//    val A = BasicEvent(0.5, "A");
+//    val B = BasicEvent(0.5, "B");
+//    val C = BasicEvent(0.5, "C");
+//
+//    val Or = A or B
+//    val Of = VotingGate(2, A, B, C)
+//    val basicEvents = arrayOf(A, B, C)
+//    val factory = DefaultJavaMddFactory()
+//    val order = factory.createMddVariableOrder(LatticeDefinition.forSets())
+//    var prev: MddVariable? = null
+//    for (event in basicEvents) {
+//        val descriptor = MddVariableDescriptor.create(event.name, 2)
+//        prev = if (prev == null) order.createOnTop(descriptor) else order.createBelow(prev, descriptor)
+//    }
+//
+//    Of.nonFailureAsMdd(order)
+//    return
+
     val galTest =
             """
                 toplevel MyTree;

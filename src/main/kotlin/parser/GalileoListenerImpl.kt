@@ -5,7 +5,11 @@ import faulttree.*
 class GalileoListenerImpl: GalileoBaseListener() {
     lateinit var faultTree: FaultTree private set
 
-    private enum class GateType { OR, AND }
+    sealed class GateType {
+        object OR: GateType()
+        object AND: GateType()
+        data class K_OF_N(val k: Int, val n: Int): GateType()
+    }
     private data class PendingNode(val name: String, val type: GateType, val inputs: Collection<String>)
     private var faultTreeName: String? = null
     private val pendingFTNodes = arrayListOf<PendingNode>()
@@ -15,6 +19,11 @@ class GalileoListenerImpl: GalileoBaseListener() {
         val newNode = when {
             ctx.operation().or() != null -> PendingNode(ctx.name.text, GateType.OR, ctx.inputs.map { it.text })
             ctx.operation().and() != null -> PendingNode(ctx.name.text, GateType.AND, ctx.inputs.map { it.text })
+            ctx.operation().of() != null -> {
+                val k = ctx.operation().of().k.text.toInt()
+                val n = ctx.operation().of().n.text.toInt()
+                PendingNode(ctx.name.text, GateType.K_OF_N(k,n), ctx.inputs.map { it.text })
+            }
             else -> throw Exception("Unknown type \"${ctx.operation().text}\" for node ${ctx.name.text} ")
         }
         if(!tryToProcess(newNode)) pendingFTNodes.add(newNode)
@@ -49,8 +58,9 @@ class GalileoListenerImpl: GalileoBaseListener() {
      * been created, and added to the createdFaulTreeNodes map!!!
      */
     private fun instantiateNode(pendingNode: PendingNode): FaultTreeNode = when(pendingNode.type) {
-        GateType.AND -> AndNode(*pendingNode.inputs.map {createdFaultTreeNodes[it]!!}.toTypedArray())
-        GateType.OR -> OrNode(*pendingNode.inputs.map { createdFaultTreeNodes[it]!! }.toTypedArray())
+        is GateType.AND -> AndGate(*pendingNode.inputs.map {createdFaultTreeNodes[it]!!}.toTypedArray())
+        is GateType.OR -> OrGate(*pendingNode.inputs.map { createdFaultTreeNodes[it]!! }.toTypedArray())
+        is GateType.K_OF_N -> VotingGate(pendingNode.type.k, *pendingNode.inputs.map { createdFaultTreeNodes[it]!! }.toTypedArray())
     }
 
     override fun enterTop(ctx: GalileoParser.TopContext) {

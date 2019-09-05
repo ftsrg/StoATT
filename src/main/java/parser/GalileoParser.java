@@ -17,31 +17,31 @@ public class GalileoParser extends Parser {
 	protected static final PredictionContextCache _sharedContextCache =
 		new PredictionContextCache();
 	public static final int
-		T__0=1, EQ=2, OR=3, AND=4, TOPLEVEL=5, LAMBDA=6, PROBABILITY=7, DORMANCY=8, 
-		NUMBER=9, NAME=10, IDENTIFIER=11, COMMENT=12, WS=13;
+		T__0=1, INT=2, EQ=3, OR=4, AND=5, OF=6, TOPLEVEL=7, LAMBDA=8, PROBABILITY=9, 
+		DORMANCY=10, NUMBER=11, NAME=12, IDENTIFIER=13, COMMENT=14, WS=15;
 	public static final int
 		RULE_faulttree = 0, RULE_top = 1, RULE_gate = 2, RULE_basicevent = 3, 
 		RULE_property = 4, RULE_lambda = 5, RULE_probability = 6, RULE_dormancy = 7, 
-		RULE_operation = 8, RULE_or = 9, RULE_and = 10;
+		RULE_operation = 8, RULE_or = 9, RULE_and = 10, RULE_of = 11;
 	private static String[] makeRuleNames() {
 		return new String[] {
 			"faulttree", "top", "gate", "basicevent", "property", "lambda", "probability", 
-			"dormancy", "operation", "or", "and"
+			"dormancy", "operation", "or", "and", "of"
 		};
 	}
 	public static final String[] ruleNames = makeRuleNames();
 
 	private static String[] makeLiteralNames() {
 		return new String[] {
-			null, "';'", "'='", "'or'", "'and'", "'toplevel'", "'lambda'", "'prob'", 
-			"'dorm'"
+			null, "';'", null, "'='", "'or'", "'and'", "'of'", "'toplevel'", "'lambda'", 
+			"'prob'", "'dorm'"
 		};
 	}
 	private static final String[] _LITERAL_NAMES = makeLiteralNames();
 	private static String[] makeSymbolicNames() {
 		return new String[] {
-			null, null, "EQ", "OR", "AND", "TOPLEVEL", "LAMBDA", "PROBABILITY", "DORMANCY", 
-			"NUMBER", "NAME", "IDENTIFIER", "COMMENT", "WS"
+			null, null, "INT", "EQ", "OR", "AND", "OF", "TOPLEVEL", "LAMBDA", "PROBABILITY", 
+			"DORMANCY", "NUMBER", "NAME", "IDENTIFIER", "COMMENT", "WS"
 		};
 	}
 	private static final String[] _SYMBOLIC_NAMES = makeSymbolicNames();
@@ -133,41 +133,41 @@ public class GalileoParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(22);
+			setState(24);
 			top();
-			setState(23);
+			setState(25);
 			match(T__0);
-			setState(32);
+			setState(34);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==NAME) {
 				{
 				{
-				setState(26);
+				setState(28);
 				_errHandler.sync(this);
 				switch ( getInterpreter().adaptivePredict(_input,0,_ctx) ) {
 				case 1:
 					{
-					setState(24);
+					setState(26);
 					gate();
 					}
 					break;
 				case 2:
 					{
-					setState(25);
+					setState(27);
 					basicevent();
 					}
 					break;
 				}
-				setState(28);
+				setState(30);
 				match(T__0);
 				}
 				}
-				setState(34);
+				setState(36);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
-			setState(35);
+			setState(37);
 			match(EOF);
 			}
 		}
@@ -206,9 +206,9 @@ public class GalileoParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(37);
+			setState(39);
 			match(TOPLEVEL);
-			setState(38);
+			setState(40);
 			((TopContext)_localctx).name = match(NAME);
 			}
 		}
@@ -255,22 +255,22 @@ public class GalileoParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(40);
+			setState(42);
 			((GateContext)_localctx).name = match(NAME);
-			setState(41);
+			setState(43);
 			operation();
-			setState(45);
+			setState(47);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==NAME) {
 				{
 				{
-				setState(42);
+				setState(44);
 				((GateContext)_localctx).NAME = match(NAME);
 				((GateContext)_localctx).inputs.add(((GateContext)_localctx).NAME);
 				}
 				}
-				setState(47);
+				setState(49);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
@@ -317,19 +317,19 @@ public class GalileoParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(48);
+			setState(50);
 			((BasiceventContext)_localctx).name = match(NAME);
-			setState(52);
+			setState(54);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while ((((_la) & ~0x3f) == 0 && ((1L << _la) & ((1L << LAMBDA) | (1L << PROBABILITY) | (1L << DORMANCY))) != 0)) {
 				{
 				{
-				setState(49);
+				setState(51);
 				property();
 				}
 				}
-				setState(54);
+				setState(56);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
@@ -376,24 +376,24 @@ public class GalileoParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(58);
+			setState(60);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case LAMBDA:
 				{
-				setState(55);
+				setState(57);
 				lambda();
 				}
 				break;
 			case PROBABILITY:
 				{
-				setState(56);
+				setState(58);
 				probability();
 				}
 				break;
 			case DORMANCY:
 				{
-				setState(57);
+				setState(59);
 				dormancy();
 				}
 				break;
@@ -438,11 +438,11 @@ public class GalileoParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(60);
-			match(LAMBDA);
-			setState(61);
-			match(EQ);
 			setState(62);
+			match(LAMBDA);
+			setState(63);
+			match(EQ);
+			setState(64);
 			((LambdaContext)_localctx).val = match(NUMBER);
 			}
 		}
@@ -482,11 +482,11 @@ public class GalileoParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(64);
-			match(PROBABILITY);
-			setState(65);
-			match(EQ);
 			setState(66);
+			match(PROBABILITY);
+			setState(67);
+			match(EQ);
+			setState(68);
 			((ProbabilityContext)_localctx).val = match(NUMBER);
 			}
 		}
@@ -526,11 +526,11 @@ public class GalileoParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(68);
-			match(DORMANCY);
-			setState(69);
-			match(EQ);
 			setState(70);
+			match(DORMANCY);
+			setState(71);
+			match(EQ);
+			setState(72);
 			((DormancyContext)_localctx).val = match(NUMBER);
 			}
 		}
@@ -552,6 +552,9 @@ public class GalileoParser extends Parser {
 		public AndContext and() {
 			return getRuleContext(AndContext.class,0);
 		}
+		public OfContext of() {
+			return getRuleContext(OfContext.class,0);
+		}
 		public OperationContext(ParserRuleContext parent, int invokingState) {
 			super(parent, invokingState);
 		}
@@ -572,19 +575,25 @@ public class GalileoParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(74);
+			setState(77);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case OR:
 				{
-				setState(72);
+				setState(74);
 				or();
 				}
 				break;
 			case AND:
 				{
-				setState(73);
+				setState(75);
 				and();
+				}
+				break;
+			case INT:
+				{
+				setState(76);
+				of();
 				}
 				break;
 			default:
@@ -625,7 +634,7 @@ public class GalileoParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(76);
+			setState(79);
 			match(OR);
 			}
 		}
@@ -662,7 +671,7 @@ public class GalileoParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(78);
+			setState(81);
 			match(AND);
 			}
 		}
@@ -677,27 +686,81 @@ public class GalileoParser extends Parser {
 		return _localctx;
 	}
 
+	public static class OfContext extends ParserRuleContext {
+		public Token k;
+		public Token n;
+		public TerminalNode OF() { return getToken(GalileoParser.OF, 0); }
+		public List<TerminalNode> INT() { return getTokens(GalileoParser.INT); }
+		public TerminalNode INT(int i) {
+			return getToken(GalileoParser.INT, i);
+		}
+		public OfContext(ParserRuleContext parent, int invokingState) {
+			super(parent, invokingState);
+		}
+		@Override public int getRuleIndex() { return RULE_of; }
+		@Override
+		public void enterRule(ParseTreeListener listener) {
+			if ( listener instanceof GalileoListener ) ((GalileoListener)listener).enterOf(this);
+		}
+		@Override
+		public void exitRule(ParseTreeListener listener) {
+			if ( listener instanceof GalileoListener ) ((GalileoListener)listener).exitOf(this);
+		}
+	}
+
+	public final OfContext of() throws RecognitionException {
+		OfContext _localctx = new OfContext(_ctx, getState());
+		enterRule(_localctx, 22, RULE_of);
+		try {
+			enterOuterAlt(_localctx, 1);
+			{
+			{
+			setState(83);
+			((OfContext)_localctx).k = match(INT);
+			}
+			{
+			setState(84);
+			match(OF);
+			}
+			{
+			setState(85);
+			((OfContext)_localctx).n = match(INT);
+			}
+			}
+		}
+		catch (RecognitionException re) {
+			_localctx.exception = re;
+			_errHandler.reportError(this, re);
+			_errHandler.recover(this, re);
+		}
+		finally {
+			exitRule();
+		}
+		return _localctx;
+	}
+
 	public static final String _serializedATN =
-		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3\17S\4\2\t\2\4\3\t"+
+		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3\21Z\4\2\t\2\4\3\t"+
 		"\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13\t\13\4"+
-		"\f\t\f\3\2\3\2\3\2\3\2\5\2\35\n\2\3\2\3\2\7\2!\n\2\f\2\16\2$\13\2\3\2"+
-		"\3\2\3\3\3\3\3\3\3\4\3\4\3\4\7\4.\n\4\f\4\16\4\61\13\4\3\5\3\5\7\5\65"+
-		"\n\5\f\5\16\58\13\5\3\6\3\6\3\6\5\6=\n\6\3\7\3\7\3\7\3\7\3\b\3\b\3\b\3"+
-		"\b\3\t\3\t\3\t\3\t\3\n\3\n\5\nM\n\n\3\13\3\13\3\f\3\f\3\f\2\2\r\2\4\6"+
-		"\b\n\f\16\20\22\24\26\2\2\2N\2\30\3\2\2\2\4\'\3\2\2\2\6*\3\2\2\2\b\62"+
-		"\3\2\2\2\n<\3\2\2\2\f>\3\2\2\2\16B\3\2\2\2\20F\3\2\2\2\22L\3\2\2\2\24"+
-		"N\3\2\2\2\26P\3\2\2\2\30\31\5\4\3\2\31\"\7\3\2\2\32\35\5\6\4\2\33\35\5"+
-		"\b\5\2\34\32\3\2\2\2\34\33\3\2\2\2\35\36\3\2\2\2\36\37\7\3\2\2\37!\3\2"+
-		"\2\2 \34\3\2\2\2!$\3\2\2\2\" \3\2\2\2\"#\3\2\2\2#%\3\2\2\2$\"\3\2\2\2"+
-		"%&\7\2\2\3&\3\3\2\2\2\'(\7\7\2\2()\7\f\2\2)\5\3\2\2\2*+\7\f\2\2+/\5\22"+
-		"\n\2,.\7\f\2\2-,\3\2\2\2.\61\3\2\2\2/-\3\2\2\2/\60\3\2\2\2\60\7\3\2\2"+
-		"\2\61/\3\2\2\2\62\66\7\f\2\2\63\65\5\n\6\2\64\63\3\2\2\2\658\3\2\2\2\66"+
-		"\64\3\2\2\2\66\67\3\2\2\2\67\t\3\2\2\28\66\3\2\2\29=\5\f\7\2:=\5\16\b"+
-		"\2;=\5\20\t\2<9\3\2\2\2<:\3\2\2\2<;\3\2\2\2=\13\3\2\2\2>?\7\b\2\2?@\7"+
-		"\4\2\2@A\7\13\2\2A\r\3\2\2\2BC\7\t\2\2CD\7\4\2\2DE\7\13\2\2E\17\3\2\2"+
-		"\2FG\7\n\2\2GH\7\4\2\2HI\7\13\2\2I\21\3\2\2\2JM\5\24\13\2KM\5\26\f\2L"+
-		"J\3\2\2\2LK\3\2\2\2M\23\3\2\2\2NO\7\5\2\2O\25\3\2\2\2PQ\7\6\2\2Q\27\3"+
-		"\2\2\2\b\34\"/\66<L";
+		"\f\t\f\4\r\t\r\3\2\3\2\3\2\3\2\5\2\37\n\2\3\2\3\2\7\2#\n\2\f\2\16\2&\13"+
+		"\2\3\2\3\2\3\3\3\3\3\3\3\4\3\4\3\4\7\4\60\n\4\f\4\16\4\63\13\4\3\5\3\5"+
+		"\7\5\67\n\5\f\5\16\5:\13\5\3\6\3\6\3\6\5\6?\n\6\3\7\3\7\3\7\3\7\3\b\3"+
+		"\b\3\b\3\b\3\t\3\t\3\t\3\t\3\n\3\n\3\n\5\nP\n\n\3\13\3\13\3\f\3\f\3\r"+
+		"\3\r\3\r\3\r\3\r\2\2\16\2\4\6\b\n\f\16\20\22\24\26\30\2\2\2U\2\32\3\2"+
+		"\2\2\4)\3\2\2\2\6,\3\2\2\2\b\64\3\2\2\2\n>\3\2\2\2\f@\3\2\2\2\16D\3\2"+
+		"\2\2\20H\3\2\2\2\22O\3\2\2\2\24Q\3\2\2\2\26S\3\2\2\2\30U\3\2\2\2\32\33"+
+		"\5\4\3\2\33$\7\3\2\2\34\37\5\6\4\2\35\37\5\b\5\2\36\34\3\2\2\2\36\35\3"+
+		"\2\2\2\37 \3\2\2\2 !\7\3\2\2!#\3\2\2\2\"\36\3\2\2\2#&\3\2\2\2$\"\3\2\2"+
+		"\2$%\3\2\2\2%\'\3\2\2\2&$\3\2\2\2\'(\7\2\2\3(\3\3\2\2\2)*\7\t\2\2*+\7"+
+		"\16\2\2+\5\3\2\2\2,-\7\16\2\2-\61\5\22\n\2.\60\7\16\2\2/.\3\2\2\2\60\63"+
+		"\3\2\2\2\61/\3\2\2\2\61\62\3\2\2\2\62\7\3\2\2\2\63\61\3\2\2\2\648\7\16"+
+		"\2\2\65\67\5\n\6\2\66\65\3\2\2\2\67:\3\2\2\28\66\3\2\2\289\3\2\2\29\t"+
+		"\3\2\2\2:8\3\2\2\2;?\5\f\7\2<?\5\16\b\2=?\5\20\t\2>;\3\2\2\2><\3\2\2\2"+
+		">=\3\2\2\2?\13\3\2\2\2@A\7\n\2\2AB\7\5\2\2BC\7\r\2\2C\r\3\2\2\2DE\7\13"+
+		"\2\2EF\7\5\2\2FG\7\r\2\2G\17\3\2\2\2HI\7\f\2\2IJ\7\5\2\2JK\7\r\2\2K\21"+
+		"\3\2\2\2LP\5\24\13\2MP\5\26\f\2NP\5\30\r\2OL\3\2\2\2OM\3\2\2\2ON\3\2\2"+
+		"\2P\23\3\2\2\2QR\7\6\2\2R\25\3\2\2\2ST\7\7\2\2T\27\3\2\2\2UV\7\4\2\2V"+
+		"W\7\b\2\2WX\7\4\2\2X\31\3\2\2\2\b\36$\618>O";
 	public static final ATN _ATN =
 		new ATNDeserializer().deserialize(_serializedATN.toCharArray());
 	static {
