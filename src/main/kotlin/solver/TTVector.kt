@@ -42,16 +42,16 @@ class TTVector(var tt: TensorTrain) {
         }
     }
 
-    val numElements = tt.cores.map { it.modeLength }.product()
+    val numElements = tt.cores.map { it.modeLength.toLong() }.reduce(Long::times)
     val modes = tt.cores.map { it.modeLength }.toTypedArray()
 
-    operator fun get(element: Int): Double {
+    operator fun get(element: Long): Double {
         val indices = arrayListOf<Int>()
         var tempDiv = numElements
         var tempElem = element
         for (core in tt.cores) {
             tempDiv /= core.modeLength
-            indices.add(tempElem/tempDiv)
+            indices.add((tempElem / tempDiv).toInt())
             tempElem %= tempDiv
         }
         return tt.get(*(indices.toIntArray()))

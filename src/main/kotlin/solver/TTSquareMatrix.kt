@@ -56,12 +56,12 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
         }
     }
 
-    val numRows = modes.product()
-    val numCols = modes.product()
+    val numRows = modes.map(Int::toLong).reduce(Long::times)
+    val numCols = modes.map(Int::toLong).reduce(Long::times)
 
-    operator fun get(row: Int, col: Int): Double {
-        val rowIndices = arrayListOf<Int>()
-        val colIndices = arrayListOf<Int>()
+    operator fun get(row: Long, col: Long): Double {
+        val rowIndices = arrayListOf<Long>()
+        val colIndices = arrayListOf<Long>()
         var tempDiv = numRows
         var tempElem = row
         for (mode in modes) {
@@ -76,7 +76,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
             colIndices.add(tempElem/tempDiv)
             tempElem %= tempDiv
         }
-        val indices = IntArray(modes.size) { idx -> rowIndices[idx]*modes[idx]+colIndices[idx]}
+        val indices = IntArray(modes.size) { idx -> (rowIndices[idx]*modes[idx]+colIndices[idx]).toInt()}
         return tt.get(*indices)
     }
 
@@ -199,12 +199,6 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
     }
 
     operator fun div(d: Double): TTSquareMatrix = this * (1.0 / d)
-
-    fun toSimpleMatrix(): SimpleMatrix {
-        val M = SimpleMatrix(numRows, numCols)
-        M.fill { i,j -> this[i,j] }
-        return M
-    }
 
     fun transpose(): TTSquareMatrix {
         val transpCores = arrayListOf<CoreTensor>()

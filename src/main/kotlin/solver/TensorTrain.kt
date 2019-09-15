@@ -52,6 +52,8 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
 
     constructor() : this(arrayListOf())
 
+    fun ranks() = cores.map { it.rows } + listOf(1)
+
     operator fun get(vararg indices: Int): Double {
         assert(indices.size == cores.size)
         var res = cores[0][indices[0]]
@@ -60,6 +62,22 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
         }
         assert(res.numElements == 1)
         return res[0]
+    }
+
+    fun dataAsString(): String {
+        val res = StringBuilder()
+        res.append(cores.map { it.modeLength }).append('\n')
+        res.append(ranks()).append('\n')
+        for (core in cores) {
+            for (matrix in core.data) {
+                for (i in 0 until matrix.numElements) {
+                    res.append(matrix[i])
+                    res.append(' ')
+                }
+                res.deleteCharAt(res.length-1).append('\n')
+            }
+        }
+        return res.toString()
     }
 
     private fun addCore(core: CoreTensor) = cores.add(core)
@@ -241,11 +259,11 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
 
     /**
      * Performs SVD-based Tensor Train rounding
-     * @param accuracy Relative accuracy of the rounding procedure
+     * @param tolerance Relative tolerance of the rounding procedure
      */
-    fun round(accuracy: Double) {
+    fun round(tolerance: Double, budgetMode: BudgetMode = BudgetMode.NONE) {
         //init
-        val delta = accuracy / sqrt((cores.size-1).toDouble()) * frobenius()
+        var delta = tolerance / sqrt((cores.size - 1).toDouble()) * frobenius()
 
         //right-to-left orthogonalization
         for(i in cores.lastIndex downTo 1) {
