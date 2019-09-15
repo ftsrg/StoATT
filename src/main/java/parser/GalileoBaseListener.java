@@ -112,6 +112,18 @@ public class GalileoBaseListener implements GalileoListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterRepair(GalileoParser.RepairContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitRepair(GalileoParser.RepairContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterOperation(GalileoParser.OperationContext ctx) { }
 	/**
 	 * {@inheritDoc}

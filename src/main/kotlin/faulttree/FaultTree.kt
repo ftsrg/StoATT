@@ -4,142 +4,120 @@ import hu.bme.mit.delta.java.mdd.impl.DefaultJavaMddFactory
 import hu.bme.mit.delta.mdd.LatticeDefinition
 import hu.bme.mit.delta.mdd.MddHandle
 import hu.bme.mit.delta.mdd.MddVariable
-import hu.bme.mit.delta.mdd.MddVariableDescriptor
 import org.ejml.simple.SimpleMatrix
 import solver.*
-import java.util.*
 
 
 class FaultTree(val topNode: FaultTreeNode) {
 
     val functionalDeps = arrayListOf<FunctionalDependency>()
 
-    private fun getOrderedVariables(): Collection<MddVariableDescriptor> {
-        val orderedVars = arrayListOf<MddVariableDescriptor>()
-        val basicEvents = topNode.getBasicEvents()
-        val basicEventVars =
-                basicEvents.map { it.name to MddVariableDescriptor.create(it.name, 2) }.toMap()
-        //TODO: PAND state variables
-        val allVars = basicEventVars
-        val allVarNames = basicEvents.map { it.name }
-        val dependencyGraphNeighbors =
-                allVarNames.map { it to hashSetOf<String>() }.toMap()
-        // Functional dependencies
-        for (dep in functionalDeps) {
-            val trigName = dep.trigger.name
-            for (dependentEvent in dep.dependentEvents) {
-                val depName = dependentEvent.name
-                dependencyGraphNeighbors[trigName]?.add(depName) ?: throw RuntimeException("Trigger event not found")
-                dependencyGraphNeighbors[depName]?.add(trigName) ?: throw RuntimeException("Dependent event not found")
+    private fun getOrderedVariables(): List<DFTVar> {
+        val allVars = topNode.getVariables()
+
+        // Order dynamic variables
+        val degreeOrdered = allVars.values
+                .sortedBy { it.dynamicallyRelatedVals.size }
+                .toMutableList()
+        //vars not having any dynamic relationships with other vars will be ordered using a static fault tree ordering scheme
+        val staticVars = degreeOrdered.takeWhile { it.dynamicallyRelatedVals.size == 0 }
+        degreeOrdered.removeAll(staticVars)
+        val orderedVars = arrayListOf<DFTVar>()
+        if(degreeOrdered.size > 0) {
+            orderedVars.add(degreeOrdered[0])
+            degreeOrdered.removeAt(0)
+            var i = 0
+            while (degreeOrdered.size > 0) {
+                val Ai = degreeOrdered.intersect(orderedVars[i].dynamicallyRelatedVals)
+                orderedVars.addAll(Ai)
+                degreeOrdered.removeAll(Ai)
+                i++
             }
         }
 
-        //TODO: SEQ gates
-        //TODO: PAND gates
-
-        val degreeOrdered = allVarNames
-                .sortedBy { dependencyGraphNeighbors[it]!!.size  }
-                .toMutableList()
-        //vars not having any dynamic relationships with other vars will be ordered using a static fault tree ordering scheme
-        val staticVars = degreeOrdered.takeWhile { dependencyGraphNeighbors[it]!!.size == 0 }
-        degreeOrdered.removeAll(staticVars)
-        val orderedVarNames = arrayListOf<String>()
-        orderedVarNames.add(degreeOrdered[0])
-        degreeOrdered.removeAt(0)
-        var i = 0
-        while (degreeOrdered.size > 0) {
-            val Ai = degreeOrdered.intersect(dependencyGraphNeighbors[orderedVarNames[i]]!!)
-            orderedVarNames.addAll(Ai)
-            degreeOrdered.removeAll(Ai)
-            i++
+        // Order static events
+        fun traverse(node: FaultTreeNode) {
+            if(node is BasicEvent && !(orderedVars.contains(node.variable)))
+                orderedVars.add(node.variable)
+            else if(node is StaticGate)
+                node.inputs.sortedBy { -it.getOrderingWeight() }.forEach(::traverse)
         }
+        traverse(topNode)
 
-        TODO("order static events")
-
-
-
-        return orderedVarNames.map { allVars[it]!! }
+        return orderedVars
     }
 
     fun nonFailureAsMdd(): MddHandle {
-        val basicEvents = getOrderdEvents()
+        val vars = getOrderedVariables()
         val factory = DefaultJavaMddFactory()
         val order = factory.createMddVariableOrder(LatticeDefinition.forSets())
         var prev: MddVariable? = null
-        for (event in basicEvents) {
-            val descriptor = MddVariableDescriptor.create(event.name, 2)
-            prev = if (prev == null) order.createOnTop(descriptor) else order.createBelow(prev, descriptor)
+        for (variable in vars) {
+            prev = if (prev == null) order.createOnTop(variable.variableDescriptor) else order.createBelow(prev, variable.variableDescriptor)
         }
 
         return topNode.nonFailureAsMdd(order)
     }
 
-    fun getOrderdEvents(): List<BasicEvent> {
-        //TODO: var ordering
-        return ArrayList(topNode.getBasicEvents())
-    }
-
-    fun getTransientGenerator(): TTSquareMatrix {
+    /**
+     * Calculates the generator matrix of the fault tree's corresponding Markov chain, without taking absorption in
+     * failure states into account (so in this chain, a failed system can get worse).
+     */
+    fun getBaseGenerator(): TTSquareMatrix {
         //TODO: handle single event
         //TODO: don't care values?
-        //TODO: think about transpositions
         val cores = arrayListOf<CoreTensor>()
-        val events = getOrderdEvents()
-        for ((idx, event) in events.withIndex()) {
-            when (idx) {
-                0 -> {
-                    val newCore = CoreTensor(4, 1, 2)
-                    newCore.data[0] = mat[r[0.0, 1.0]]
-                    newCore.data[1] = mat[r[event.rate, 0.0]]
-                    //newCore.data[2] = mat[r[0.0, 0.0]]
-                    newCore.data[3] = mat[r[0.0, 1.0]]
-                    cores.add(newCore)
-                }
-                events.lastIndex -> {
-                    val newCore = CoreTensor(4, 2, 1)
-                    newCore.data[0] = mat[r[1.0], r[0.0]]
-                    newCore.data[1] = mat[r[0.0], r[event.rate]]
-                    //newCore.data[2] = mat[r[0.0], r[0.0]]
-                    newCore.data[3] = mat[r[1.0], r[0.0]]
-                    cores.add(newCore)
-                }
-                else -> {
-                    val newCore = CoreTensor(4, 2, 2)
-                    newCore[0] = eye(2)
-                    newCore[1] = mat[
-                            r[0.0, 0.0],
-                            r[event.rate, 0.0]
-                    ]
-                    //newCore[2] = SimpleMatrix(2,2)
-                    newCore[3] = eye(2)
-                    cores.add(newCore)
-                }
-            }
+        val vars = getOrderedVariables()
+        for ((idx, variable) in vars.withIndex()) {
+            cores.add(variable.getBaseCore(cores.lastOrNull()?.cols ?: 1, idx == vars.size-1))
         }
-        val M = TTSquareMatrix(TensorTrain(cores), Array(events.size) { 2 })
+        val Mpre = TTSquareMatrix(TensorTrain(cores), Array(vars.size) { vars[it].variableDescriptor.domainSize })
+        return Mpre-TTSquareMatrix.diag(Mpre*TTVector.ones(Mpre.modes))
+    }
+
+    /**
+     * Calculates the generator matrix of the fault tree's corresponding Markov chain in the TT format,
+     * and performs the modification needed for MTTF calculation on it.
+     * @return the modified generator matrix in TT format
+     */
+    fun getModifiedGenerator(): TTSquareMatrix {
+        val M = getBaseGenerator()
         val stateMaskVector = getStateMaskVector()
-        val maskMatrix = stateMaskVector.outerProduct(stateMaskVector)
-        return (M - TTSquareMatrix.diag(M * TTVector.ones(M.modes))).hadamard(maskMatrix) + TTSquareMatrix.diag(TTVector.ones(stateMaskVector.modes) - stateMaskVector)
+        val meanExitRate=M.diagVect().norm()/M.numCols
+        // TODO: PAND and SPARE might introduce new absorbing states in the original Markov chain
+        val origAbsorbingIndicatorVector = TTVector(TensorTrain(
+                ArrayList(List(stateMaskVector.modes.size) {
+                    CoreTensor(stateMaskVector.modes[it], 1, 1).apply {
+                        set(1, mat[r[1]])
+                    }
+                })
+        ))
+        val failureIndicatorVector = TTVector.ones(stateMaskVector.modes) - stateMaskVector
+        val failureIndicatorMatrix = TTSquareMatrix.diag(failureIndicatorVector)
+        return M - failureIndicatorMatrix * M - M * failureIndicatorMatrix + meanExitRate * TTSquareMatrix.diag(origAbsorbingIndicatorVector) - 2.0 * TTSquareMatrix.diag(M.diagVect().hadamard(failureIndicatorVector))
+
+//        val maskMatrix = stateMaskVector.outerProduct(stateMaskVector)
+//        return (M - TTSquareMatrix.diag(M * TTVector.ones(M.modes))).hadamard(maskMatrix) + TTSquareMatrix.diag(TTVector.ones(stateMaskVector.modes) - stateMaskVector)
     }
 
     private fun applyFunctionalDependency(orig: TTSquareMatrix, functionalDependency: FunctionalDependency): TTSquareMatrix {
         var res = orig
-        val orderedEvents = getOrderdEvents()
+        val orderedVars = getOrderedVariables()
         val trigger = functionalDependency.trigger
-        assert(orderedEvents.contains(trigger)) {
+        assert(orderedVars.contains(trigger.variable)) {
             "The fault tree must contain the trigger event! \n" +
             "Basic event not found in the tree: ${trigger.name}"
         }
 
-        val triggerIdx = orderedEvents.indexOf(trigger)
+        val triggerIdx = orderedVars.indexOf(trigger.variable)
         for (dependentEvent in functionalDependency.dependentEvents) {
-            assert(orderedEvents.contains(dependentEvent)) {
+            assert(orderedVars.contains(dependentEvent.variable)) {
                 "The fault tree must contain the dependent event! \n" +
                 "Basic event not found in the tree: ${dependentEvent.name}"
             }
 
             //TODO: index in the ordered event list aren't the same as the core index if the fault tree has stateful gates
-            val depIdx = orderedEvents.indexOf(dependentEvent)
+            val depIdx = orderedVars.indexOf(dependentEvent.variable)
             val changeMatrix = TTSquareMatrix.eye(orig.modes)
             val leftCore = CoreTensor(4, 1, 2)
             val rightCore = CoreTensor(4, 2, 1)

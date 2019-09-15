@@ -2,7 +2,7 @@ package faulttree
 
 import hu.bme.mit.delta.mdd.MddVariableDescriptor
 
-abstract class StaticGate(vararg val inputs: FaultTreeNode) : FaultTreeNode() {
+abstract class StaticGate(vararg val inputs: FaultTreeNode) : FaultTreeNode(inputs.any{it.repairable}) {
     override fun getVariables(): HashMap<MddVariableDescriptor, DFTVar> {
         return inputs.fold(hashMapOf()) { acc, next -> acc.modifiedUnion(next.getVariables()) }
     }

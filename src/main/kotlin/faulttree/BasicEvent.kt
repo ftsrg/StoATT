@@ -9,7 +9,7 @@ import solver.eye
 import solver.mat
 import solver.r
 
-class BasicEvent(val rate: Double, val name: String): FaultTreeNode() {
+class BasicEvent(val name: String, val failureRate: Double, val dormancy: Double = 1.0, val repairRate: Double = 0.0): FaultTreeNode(repairRate > 0.0) {
     companion object {
 
         class BasicEventVar(val event: BasicEvent): DFTVar(event.descriptor) {
@@ -19,16 +19,16 @@ class BasicEvent(val rate: Double, val name: String): FaultTreeNode() {
                     prevRank == 1 -> {
                         val newCore = CoreTensor(4, 1, 2)
                         newCore.data[0] = mat[r[0.0, 1.0]]
-                        newCore.data[1] = mat[r[event.rate, 0.0]]
-                        //newCore.data[2] = mat[r[0.0, 0.0]]
+                        newCore.data[1] = mat[r[event.failureRate, 0.0]]
+                        newCore.data[2] = mat[r[event.repairRate, 0.0]]
                         newCore.data[3] = mat[r[0.0, 1.0]]
                         return newCore
                     }
                     isLast -> {
                         val newCore = CoreTensor(4, 2, 1)
                         newCore.data[0] = mat[r[1.0], r[0.0]]
-                        newCore.data[1] = mat[r[0.0], r[event.rate]]
-                        //newCore.data[2] = mat[r[0.0], r[0.0]]
+                        newCore.data[1] = mat[r[0.0], r[event.failureRate]]
+                        newCore.data[2] = mat[r[0.0], r[event.repairRate]]
                         newCore.data[3] = mat[r[1.0], r[0.0]]
                         return newCore
                     }
@@ -37,9 +37,12 @@ class BasicEvent(val rate: Double, val name: String): FaultTreeNode() {
                         newCore[0] = eye(2)
                         newCore[1] = mat[
                                 r[0.0, 0.0],
-                                r[event.rate, 0.0]
+                                r[event.failureRate, 0.0]
                         ]
-                        //newCore[2] = SimpleMatrix(2,2)
+                        newCore[2] = mat[
+                                r[0.0, 0.0],
+                                r[event.repairRate, 0.0]
+                        ]
                         newCore[3] = eye(2)
                         return newCore
                     }
@@ -51,8 +54,9 @@ class BasicEvent(val rate: Double, val name: String): FaultTreeNode() {
     }
 
     private val descriptor = MddVariableDescriptor.create(name, 2)
+    val variable = BasicEventVar(this)
     override fun getVariables(): HashMap<MddVariableDescriptor, DFTVar> {
-        return hashMapOf(descriptor to BasicEventVar(this))
+        return hashMapOf(descriptor to this.variable)
     }
 
     override fun getOrderingWeight(): Double {

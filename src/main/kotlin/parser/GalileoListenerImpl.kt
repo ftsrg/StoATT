@@ -32,7 +32,9 @@ class GalileoListenerImpl: GalileoBaseListener() {
     override fun enterBasicevent(ctx: GalileoParser.BasiceventContext) {
         val name = ctx.name.text
         val lambda = ctx.property().find { it.lambda() != null }?.lambda()?.`val`?.text?.toDouble() ?: throw Exception("No lambda specified for basic event $name")
-        addFTNode(name, BasicEvent(lambda, name))
+        val mu = ctx.property().find { it.repair() != null }?.repair()?.`val`?.text?.toDouble() ?: 0.0
+        val dorm = ctx.property().find { it.dormancy() != null }?.dormancy()?.`val`?.text?.toDouble() ?: 1.0
+        addFTNode(name, BasicEvent(name, lambda, dorm, repairRate = mu))
     }
 
     //TODO: optimize recursion if possible
