@@ -30,7 +30,7 @@ class FTSolver: CliktCommand() {
             else -> FileInputStream(file)
         }
         val faulttree = galileoParser.parse(inputStream)
-        val transientGeneratorMatrix = faulttree.getTransientGenerator()
+        val transientGeneratorMatrix = faulttree.getModifiedGenerator()
         val stateMaskVector = faulttree.getStateMaskVector()
         when(solver) {
             SolverType.GMRES -> {

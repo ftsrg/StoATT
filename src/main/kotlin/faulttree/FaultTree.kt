@@ -1,5 +1,6 @@
 package faulttree
 
+import faulttree.BasicEvent.Companion.BasicEventVar
 import hu.bme.mit.delta.java.mdd.impl.DefaultJavaMddFactory
 import hu.bme.mit.delta.mdd.LatticeDefinition
 import hu.bme.mit.delta.mdd.MddHandle
@@ -47,6 +48,11 @@ class FaultTree(val topNode: FaultTreeNode) {
         return orderedVars
     }
 
+    fun getKronsumComponents(): List<SimpleMatrix> =
+            getOrderedVariables()
+            .filterIsInstance<BasicEventVar>()
+            .map { it.getKronsumTerm() }
+
     fun nonFailureAsMdd(): MddHandle {
         val vars = getOrderedVariables()
         val factory = DefaultJavaMddFactory()
@@ -82,6 +88,13 @@ class FaultTree(val topNode: FaultTreeNode) {
      */
     fun getModifiedGenerator(): TTSquareMatrix {
         val M = getBaseGenerator()
+        val S = getModifierForMTTF(M)
+        val res = M - S
+        res.tt.round(0.0)
+        return res
+    }
+
+    fun getModifierForMTTF(M: TTSquareMatrix): TTSquareMatrix {
         val stateMaskVector = getStateMaskVector()
         val meanExitRate=M.diagVect().norm()/M.numCols
         // TODO: PAND and SPARE might introduce new absorbing states in the original Markov chain
@@ -94,10 +107,7 @@ class FaultTree(val topNode: FaultTreeNode) {
         ))
         val failureIndicatorVector = TTVector.ones(stateMaskVector.modes) - stateMaskVector
         val failureIndicatorMatrix = TTSquareMatrix.diag(failureIndicatorVector)
-        return M - failureIndicatorMatrix * M - M * failureIndicatorMatrix + meanExitRate * TTSquareMatrix.diag(origAbsorbingIndicatorVector) - 2.0 * TTSquareMatrix.diag(M.diagVect().hadamard(failureIndicatorVector))
-
-//        val maskMatrix = stateMaskVector.outerProduct(stateMaskVector)
-//        return (M - TTSquareMatrix.diag(M * TTVector.ones(M.modes))).hadamard(maskMatrix) + TTSquareMatrix.diag(TTVector.ones(stateMaskVector.modes) - stateMaskVector)
+        return failureIndicatorMatrix * M - M * failureIndicatorMatrix + meanExitRate * TTSquareMatrix.diag(origAbsorbingIndicatorVector) - 2.0 * TTSquareMatrix.diag(M.diagVect().hadamard(failureIndicatorVector))
     }
 
     private fun applyFunctionalDependency(orig: TTSquareMatrix, functionalDependency: FunctionalDependency): TTSquareMatrix {

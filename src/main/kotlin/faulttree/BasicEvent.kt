@@ -4,6 +4,7 @@ import hu.bme.mit.delta.mdd.MddBuilder
 import hu.bme.mit.delta.mdd.MddHandle
 import hu.bme.mit.delta.mdd.MddVariableDescriptor
 import hu.bme.mit.delta.mdd.MddVariableOrder
+import org.ejml.simple.SimpleMatrix
 import solver.CoreTensor
 import solver.eye
 import solver.mat
@@ -13,6 +14,13 @@ class BasicEvent(val name: String, val failureRate: Double, val dormancy: Double
     companion object {
 
         class BasicEventVar(val event: BasicEvent): DFTVar(event.descriptor) {
+
+            fun getKronsumTerm(): SimpleMatrix {
+                return mat[
+                        r[0, event.failureRate],
+                        r[event.repairRate, 0]
+                ]
+            }
 
             override fun getBaseCore(prevRank: Int, isLast: Boolean): CoreTensor {
                 when {

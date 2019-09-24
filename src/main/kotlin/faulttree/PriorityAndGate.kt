@@ -2,9 +2,18 @@ package faulttree
 
 import hu.bme.mit.delta.mdd.MddBuilder
 import hu.bme.mit.delta.mdd.MddHandle
+import hu.bme.mit.delta.mdd.MddVariableDescriptor
 import hu.bme.mit.delta.mdd.MddVariableOrder
 
-class PriorityAndGate(val name: String, vararg val inputs: FaultTreeNode): FaultTreeNode() {
+class PriorityAndGate(val name: String, vararg val inputs: FaultTreeNode): FaultTreeNode(false) {
+    init {
+        if(inputs.any {it.repairable}) throw UnsupportedOperationException("Dynamic gate with repairable input has undefined semantics!")
+    }
+
+    override fun getVariables(): HashMap<MddVariableDescriptor, DFTVar> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
     override fun getBasicEvents(): Set<BasicEvent> {
         var ret = inputs[0].getBasicEvents()
         for (idx in 1 until inputs.size)

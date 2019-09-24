@@ -4,6 +4,9 @@ import hu.bme.mit.delta.mdd.MddBuilder
 import hu.bme.mit.delta.mdd.MddHandle
 import hu.bme.mit.delta.mdd.MddVariableDescriptor
 import hu.bme.mit.delta.mdd.MddVariableOrder
+import solver.TTSquareMatrix
+import kotlin.math.max
+import kotlin.math.min
 
 class FunctionalDependency(val trigger: BasicEvent, vararg val dependentEvents: BasicEvent): FaultTreeNode(false) {
     init {
@@ -42,5 +45,39 @@ class FunctionalDependency(val trigger: BasicEvent, vararg val dependentEvents: 
             variables.put(depVar.variableDescriptor, depVar)
         }
         return variables
+    }
+
+    fun apply(generator: TTSquareMatrix, orderedVariables: List<DFTVar>) {
+        val changeMatrix = TTSquareMatrix.eye(generator.modes)
+        val depIndices = ArrayList<Int>(dependentEvents.size)
+        var trigIdx: Int = 0
+        for ((idx, variable) in orderedVariables.withIndex()) {
+            if(variable.variableDescriptor.traceInfo == trigger.name)
+                trigIdx = idx
+            else if(dependentEvents.any{it.name == variable.variableDescriptor.traceInfo})
+                depIndices.add(idx)
+        }
+        val start = min(trigIdx, depIndices.min() ?: 0)
+        val end = max(trigIdx, depIndices.max() ?: orderedVariables.size)
+        for (idx in start..end) {
+            if(idx == trigIdx) {
+                if(idx == start) {
+
+                } else if(idx == end) {
+
+                } else {
+
+                }
+            } else if(depIndices.contains(idx)) {
+                if(idx == start) {
+
+                } else if(idx == end) {
+
+                } else {
+
+                }
+            }
+            TODO()
+        }
     }
 }

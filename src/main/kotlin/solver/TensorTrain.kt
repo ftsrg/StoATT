@@ -151,7 +151,7 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
         assert(firstCoreThis.modeLength == firstCoreThat.modeLength)
         { "First core mode lengths don't match! Left: ${firstCoreThis.modeLength}, Right: ${firstCoreThat.modeLength}" }
         for(i in 0 until firstCoreThis.modeLength) {
-            firstCoreThis.data[i] = firstCoreThis.data[i].combine(firstCoreThis.rows, firstCoreThis.cols, firstCoreThat.data[i])
+            firstCoreThis.data[i] = firstCoreThis.data[i].combine(0, firstCoreThis.cols, firstCoreThat.data[i])
         }
         firstCoreThis.updateDimensions()
 
@@ -179,7 +179,7 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
         assert(lastCoreThis.modeLength == lastCoreThat.modeLength)
         { "Last core mode lengths don't match! Left: ${lastCoreThis.modeLength}, Right: ${lastCoreThat.modeLength}" }
         for(i in 0 until lastCoreThis.modeLength) {
-            lastCoreThis.data[i] = lastCoreThis.data[i].combine(lastCoreThis.rows, lastCoreThis.cols, lastCoreThat.data[i])
+            lastCoreThis.data[i] = lastCoreThis.data[i].combine(lastCoreThis.rows, 0, lastCoreThat.data[i])
         }
         lastCoreThis.updateDimensions()
     }
@@ -257,13 +257,16 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
         core.cols = core.data[0].numCols()
     }
 
+    enum class BudgetMode {
+        NONE, UNIFORM, NEIGHBOR_SHARE
+    }
     /**
      * Performs SVD-based Tensor Train rounding
      * @param tolerance Relative tolerance of the rounding procedure
      */
     fun round(tolerance: Double, budgetMode: BudgetMode = BudgetMode.NONE) {
         //init
-        var delta = tolerance / sqrt((cores.size - 1).toDouble()) * frobenius()
+        var delta = if(tolerance == 0.0) 0.0 else (tolerance / sqrt((cores.size - 1).toDouble()) * frobenius())
 
         //right-to-left orthogonalization
         for(i in cores.lastIndex downTo 1) {
@@ -300,7 +303,23 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
             }
             val svd = Gkmat.svd(true)
             val origSize = svd.singularValues.size
-            val maxIdx = max(0, svd.singularValues.indexOfFirst(origSize) { it < delta } - 1)
+            val maxIdx = max(0, svd.singularValues.indexOfFirst(origSize) { it <= delta } - 1)
+//            var maxIdx = origSize - 1
+//            var sigma2Sum = 0.0
+//            val delta2 = delta * delta
+//            for (i in origSize downTo 1) {
+//                val sigma = svd.singularValues[i]
+//                val sigma2 = sigma * sigma
+//                if(sigma2Sum + sigma2 < delta2) {
+//                    maxIdx--
+//                    sigma2Sum += sigma2
+//                } else break
+//            }
+//            maxIdx = max(0, maxIdx)
+//            val eps2_k = sigma2Sum
+            if(budgetMode == BudgetMode.UNIFORM) {
+                TODO()
+            } else if(budgetMode == BudgetMode.UNIFORM) TODO("Uniform budget sharing")
             val GkmatTrunc = svd.u[0..END, 0..maxIdx+1]
             repeat(Gk.modeLength) {
                 Gk.data[it] = GkmatTrunc[it*Gk.rows..(it+1)*Gk.rows, 0..GkmatTrunc.numCols()]

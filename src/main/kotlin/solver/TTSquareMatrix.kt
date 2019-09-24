@@ -59,6 +59,9 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
     val numRows = modes.map(Int::toLong).reduce(Long::times)
     val numCols = modes.map(Int::toLong).reduce(Long::times)
 
+    fun frobenius() = tt.frobenius()
+    fun ttRanks() = tt.ranks()
+
     operator fun get(row: Long, col: Long): Double {
         val rowIndices = arrayListOf<Long>()
         val colIndices = arrayListOf<Long>()

@@ -11,8 +11,32 @@ fun ReGMRES(linearMap: (SimpleMatrix) -> SimpleMatrix, b: SimpleMatrix, m: Int,
     do {
         val iterResult = GMRES(linearMap, b, m, res)
         res = iterResult.solution
-    } while (iterResult.residualNorm > threshold)
+        val realResidualNorm = (linearMap(res)-b).normF()
+    } while (iterResult.residualNorm > threshold || (linearMap(res)-b).normF() > threshold)
     return res
+}
+
+fun biCGStab(linearMap: (SimpleMatrix) -> SimpleMatrix, b: SimpleMatrix, m: Int,
+             x0: SimpleMatrix = ones(b.numElements), threshold: Double): SimpleMatrix {
+    var result = x0.copy()
+    var r = b - linearMap(x0);
+    val rstar0 = ones(r.numElements)
+    var p = r
+    var u = r
+    for (j in 0 until m) {
+        val alpha = r.scalarProduct(rstar0) / linearMap(p).scalarProduct(rstar0)
+        val q = u - alpha * linearMap(p)
+        val update = alpha * (u + q)
+        result += update
+        val temp = r.scalarProduct(rstar0) // TODO: keep from prev iter
+        r -= linearMap(update)
+        val beta = r.scalarProduct(rstar0) / temp
+        u = r + beta * q
+        p = u + beta * (q+beta*p)
+        if(r.normF() < threshold)
+            return result
+    }
+    return result
 }
 
 fun GMRES(linearMap: (SimpleMatrix)->SimpleMatrix, b: SimpleMatrix, m: Int,

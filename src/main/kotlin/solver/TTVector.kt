@@ -45,6 +45,8 @@ class TTVector(var tt: TensorTrain) {
     val numElements = tt.cores.map { it.modeLength.toLong() }.reduce(Long::times)
     val modes = tt.cores.map { it.modeLength }.toTypedArray()
 
+    fun ttRanks() = tt.ranks()
+
     operator fun get(element: Long): Double {
         val indices = arrayListOf<Int>()
         var tempDiv = numElements

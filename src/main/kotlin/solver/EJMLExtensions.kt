@@ -2,6 +2,9 @@ package solver
 
 import org.ejml.dense.row.factory.DecompositionFactory_DDRM
 import org.ejml.simple.SimpleMatrix
+import kotlin.math.cosh
+import kotlin.math.exp
+import kotlin.math.sinh
 import kotlin.math.sqrt
 
 operator fun SimpleMatrix.times(other: SimpleMatrix) = this.mult(other)
@@ -28,6 +31,7 @@ fun SimpleMatrix.row(idx: Int) = this.rows(idx, idx + 1)
 fun SimpleMatrix.col(idx: Int) = this.cols(idx, idx + 1)
 
 data class QR(val Q: SimpleMatrix, val R: SimpleMatrix)
+
 fun SimpleMatrix.qr(): QR {
     val dec = DecompositionFactory_DDRM.qr()
     dec.decompose(this.ddrm)
@@ -53,6 +57,13 @@ fun SimpleMatrix.fill(valFunc: (Int, Int) -> Double) {
     }
 }
 
+fun SimpleMatrix.scalarProduct(other: SimpleMatrix): Double {
+    if ((this.numRows() > 1 && this.numCols() > 1) || (other.numRows() > 1 && other.numCols() > 1))
+        throw UnsupportedOperationException("Scalar product only available for vectors!"
+        )
+    return (this.T() * other)[0]
+}
+
 object mat {
     operator fun get(vararg rows: DoubleArray) = SimpleMatrix(rows)
     operator fun get(vararg mats: SimpleMatrix) =
@@ -67,3 +78,41 @@ fun eye(size: Int) = SimpleMatrix.identity(size)
 fun diag(vararg elements: Double) = SimpleMatrix.diag(*elements)
 fun ones(size: Int) = SimpleMatrix(size, 1).apply { fill(1.0) }
 fun ones(rows: Int, cols: Int) = SimpleMatrix(rows, cols).apply { fill(1.0) }
+
+fun exp2by2(A: SimpleMatrix): SimpleMatrix {
+    val a = A[0, 0]
+    val b = A[0, 1]
+    val c = A[1, 0]
+    val d = A[1, 1]
+    val delta = sqrt((a - d) * (a - d) + 4 * b * c)
+
+    if(delta == 0.0) {
+        return exp((a+d)/2)* mat[
+            r[1+(a-d)/2, b],
+            r[c, 1-(a-d)/2]
+        ]
+    }
+
+    val deltaHalf = delta / 2
+    val exp = exp((a + d) / 2)
+    val expPlus = exp((a + d) / 2 + deltaHalf)
+    val expMinus = exp((a + d) / 2 - deltaHalf)
+    val expsinh = (expPlus - expMinus) / 2
+    val expcosh = (expPlus + expMinus) / 2
+    val sinh = sinh(deltaHalf)
+    val cosh = cosh(deltaHalf)
+//    val m11 = exp * (delta * cosh + (a - d) * sinh)
+    val m11 = delta * expcosh + (a - d) * expsinh
+    val m12 = 2 * b * expsinh
+    val m21 = 2 * c * expsinh
+//    val m22 = exp * (delta * cosh + (d - a) * sinh)
+    val m22 = delta * expcosh + (d - a) * expsinh
+    return mat[
+            r[m11, m12],
+            r[m21, m22]
+    ] / delta
+}
+
+fun SimpleMatrix.kronSum(other: SimpleMatrix): SimpleMatrix {
+    return this.kron(eye(other.numRows())) + eye(this.numRows()).kron(other)
+}

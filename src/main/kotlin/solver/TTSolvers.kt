@@ -78,18 +78,45 @@ fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: D
     return x
 }
 
-fun DMRGInvert(A: TTSquareMatrix): TTSquareMatrix {
-    TODO()
+fun TTReGMRES(
+        A: TTSquareMatrix,
+        b: TTVector,
+        x0: TTVector,
+        eps: Double,
+        maxInnerIter: Int = 5,
+        maxOuterIter: Int = 100,
+        verbose: Boolean = false
+): TTVector {
+    val residualThreshold = b.norm() * eps
+    var x = x0.copy()
+    for (i in 0 until maxOuterIter) {
+        x = TTGMRES(A, b, x, eps, maxInnerIter, verbose)
+        x.tt.round(eps)
+        //TODO: use approximate residual from TTGMRES until it seems sufficient
+        val resNorm = (A * x - b).norm()
+        if(resNorm < residualThreshold) break
+    }
+    return x
 }
 
-fun TTGMRES(preconditioner: TTSquareMatrix, A: TTSquareMatrix, b: TTVector, x0: TTVector, eps: Double, maxIter: Int = 100): TTVector =
-        TTGMRES({preconditioner*A*it}, preconditioner*b, x0, eps, maxIter) //TODO: change eps based on preconditioning
-fun TTGMRES(A: TTSquareMatrix, b: TTVector, x0: TTVector, eps: Double, maxIter: Int = 100): TTVector =
-        TTGMRES({A*it}, b, x0, eps, maxIter)
-fun TTGMRES(linearMap: (TTVector)->TTVector, b: TTVector, x0: TTVector, eps: Double, maxIter: Int = 100): TTVector {
+fun TTGMRES(
+        preconditioner: TTSquareMatrix,
+        A: TTSquareMatrix, b: TTVector, x0: TTVector,
+        eps: Double, maxIter: Int = 100
+): TTVector = TTGMRES({preconditioner*(A*it)}, preconditioner*b, x0, eps, maxIter) //TODO: change eps based on preconditioning
+fun TTGMRES(
+        A: TTSquareMatrix, b: TTVector, x0: TTVector,
+        eps: Double, maxIter: Int = 100,
+        verbose: Boolean = false
+): TTVector = TTGMRES(A::times, b, x0, eps, maxIter, verbose)
+fun TTGMRES(
+        linearMap: (TTVector)->TTVector,
+        b: TTVector, x0: TTVector,
+        eps: Double, maxIter: Int = 100, verbose: Boolean = false): TTVector {
     // Reference for the algorithm:
     // S. V. DOLGOV - TT-GMRES: on solution to a linear system in the structured tensor format
     val res0 = b - linearMap(x0)
+    res0.tt.round(0.0)
     val R = arrayListOf(res0.norm())
     val beta = R[0]
     val V = arrayListOf(res0 / beta)
@@ -118,8 +145,11 @@ fun TTGMRES(linearMap: (TTVector)->TTVector, b: TTVector, x0: TTVector, eps: Dou
         y = solv.solution
 
         R.add(r)
-        if (r / b.norm() < eps)
+        val relResNorm = r / b.norm()
+        if (relResNorm < eps) {
+            if(verbose) println("approximate relative residual norm: $relResNorm (required: <$eps)")
             break
+        }
     }
     for (i in 0 until y.numElements) {
 //        println("Real res: ${(linearMap(x) - b).norm()}, computed res: ${R[i]}")
@@ -188,8 +218,12 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.mode
             } else { //Right orthogonalization
                 x.tt.rightOrthogonalizeCore(k)
             }
+
         }
+
         val resNorm = (f - A * x).norm()
+//        println("Resnorm: $resNorm (required: $residualThreshold)")
+        print("$resNorm ")
         if(resNorm <= residualThreshold) return x
     }
     return x
@@ -294,14 +328,13 @@ private fun applyALSStep(A: TTSquareMatrix, x: TTVector, f: TTVector, k: Int, ps
     //endregion
 
     //TODO: refine this criterion; the current threshold is taken from the original article, but maybe an adaptive/adjustable one would be better
-    val solveDirectly = currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 1000
+    val solveDirectly = currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 100
     val ACore = A.tt.cores[k]
     lateinit var w: SimpleMatrix
     if (solveDirectly) {
         val dim = currCore.modeLength * currCore.rows * currCore.cols
         val FullB = SimpleMatrix(dim, dim)
-        //TODO: Parallel computation!!!!!
-        //TODO: check indexing!!
+        //TODO: Parallel computation
         for (betaMinus in 0 until currCore.rows) {
             for (beta in 0 until currCore.cols) {
                 for (gammaMinus in 0 until currCore.rows) {
@@ -326,7 +359,7 @@ private fun applyALSStep(A: TTSquareMatrix, x: TTVector, f: TTVector, k: Int, ps
     } else {
         val w0 = F.createLike()
         //TODO: use current iterate of the core instead of a zero vector as the initial solution
-        w = ALSLocalReGMRES(psi, phi, A, w0, F, k, residualThreshold * 0.1)
+        w = ALSLocalIterSolve(psi, phi, A, w0, F, k, residualThreshold * 0.00000001)
     }
     for (i in 0 until currCore.modeLength) {
         for (beta_minus in 0 until currCore.rows) {
@@ -337,7 +370,15 @@ private fun applyALSStep(A: TTSquareMatrix, x: TTVector, f: TTVector, k: Int, ps
     }
 }
 
-private fun ALSLocalReGMRES(psi: Array<Array<SimpleMatrix>>, phi: Array<Array<SimpleMatrix>>, A: TTSquareMatrix, w0: SimpleMatrix, F: SimpleMatrix, k: Int, threshold: Double): SimpleMatrix {
+private fun ALSLocalIterSolve(
+        psi: Array<Array<SimpleMatrix>>,
+        phi: Array<Array<SimpleMatrix>>,
+        A: TTSquareMatrix,
+        w0: SimpleMatrix,
+        F: SimpleMatrix,
+        k: Int,
+        threshold: Double
+): SimpleMatrix {
     val r_k = phi.size
     val r_kminus = psi.size
     //TODO: assemble this matrix while computing phi, instead of storing phi in an array-of-arrays
@@ -416,7 +457,8 @@ private fun ALSLocalReGMRES(psi: Array<Array<SimpleMatrix>>, phi: Array<Array<Si
         return res
     }
 
-    return ReGMRES(::computeMatVec, F, 5, w0, threshold)
+    return biCGStab(::computeMatVec, F, 2000, w0, threshold)
+    return ReGMRES(::computeMatVec, F, 10, w0, threshold)
 }
 
 fun DMRGSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.modes), residualThreshold: Double, maxSweeps: Int): TTVector {
@@ -544,9 +586,27 @@ fun DMRGSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.mod
         }
 
         val resNorm = (f - A * x).norm()
+//            println("Resnorm: $resNorm (required: $residualThreshold)")
         if(resNorm <= residualThreshold) return x
     }
     return x
+}
+
+fun ALSInvert(A: TTSquareMatrix, maxSweeps: Int): TTSquareMatrix {
+    TODO("not working")
+    val extendedCores = arrayListOf<CoreTensor>()
+    for (origCore in A.tt.cores) {
+        val extendedCore = CoreTensor(origCore.modeLength * origCore.modeLength, origCore.rows, origCore.cols)
+        for (i in 0 until origCore.modeLength) {
+            extendedCore[i*origCore.modeLength+i] = origCore[i]
+        }
+        extendedCores.add(extendedCore)
+    }
+    val AExtended = TTSquareMatrix(TensorTrain(extendedCores), A.modes.map { it*it }.toTypedArray())
+    val IVec = TTVector(TTSquareMatrix.eye(A.modes).tt) //TODO: check
+    val ranks = arrayOf(1, *(Array(IVec.modes.size-1) { 5 }), 1)
+    val AInvVec = ALSSolve(AExtended, IVec, residualThreshold = 0.001 * IVec.norm(), maxSweeps = maxSweeps, x0 = TTVector.rand(IVec.modes, ranks))
+    return TTSquareMatrix(AInvVec.tt, A.modes) //TODO: check
 }
 
 fun AMEn(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.modes), residualThreshold: Double, maxSweeps: Int): TTVector {
