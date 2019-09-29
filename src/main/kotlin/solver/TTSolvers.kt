@@ -17,7 +17,7 @@ fun NSInvertVect(V: TTVector, thresh: Double, roundingAccuracy: Double, zeroMask
     do {
         val residual = zeroMaskVector - V.hadamard(Vinv)
         Vinv = Vinv + Vinv.hadamard(residual)
-        Vinv.tt.round(roundingAccuracy)
+        Vinv.tt.roundRelative(roundingAccuracy)
         if (log) {
             Vinv.printElements()
             println()
@@ -33,7 +33,7 @@ fun NSInvertMat(M: TTSquareMatrix, iters: Int, roundingAccuracy: Double): TTSqua
     repeat(iters) {
         X = X * (2.0 * I - M * X)
         println(X.tt.cores.map { "${it.rows}*${it.cols}" })
-        X.tt.round(roundingAccuracy)
+        X.tt.roundRelative(roundingAccuracy)
     }
     return X
 }
@@ -62,7 +62,7 @@ fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: D
             x.printElements()
             println()
         }
-        x.tt.round(roundingAccuracy)
+        x.tt.roundRelative(roundingAccuracy)
         if (log) {
             println("Rounded:")
             x.printElements()
@@ -91,7 +91,7 @@ fun TTReGMRES(
     var x = x0.copy()
     for (i in 0 until maxOuterIter) {
         x = TTGMRES(A, b, x, eps, maxInnerIter, verbose)
-        x.tt.round(eps)
+        x.tt.roundRelative(eps)
         //TODO: use approximate residual from TTGMRES until it seems sufficient
         val resNorm = (A * x - b).norm()
         if(resNorm < residualThreshold) break
@@ -116,7 +116,7 @@ fun TTGMRES(
     // Reference for the algorithm:
     // S. V. DOLGOV - TT-GMRES: on solution to a linear system in the structured tensor format
     val res0 = b - linearMap(x0)
-    res0.tt.round(0.0)
+    res0.tt.roundRelative(0.0)
     val R = arrayListOf(res0.norm())
     val beta = R[0]
     val V = arrayListOf(res0 / beta)
@@ -127,13 +127,13 @@ fun TTGMRES(
     for (j in 1..maxIter) {
         val delta = eps / R[j - 1]
         var w = linearMap(V[j - 1])
-        w.tt.round(delta)
+        w.tt.roundRelative(delta)
         for (i in 0 until j) {
             val t = w * V[i]
             h[Pair(i, j - 1)] = t
             w = w - V[i] * t
         }
-        w.tt.round(delta)
+        w.tt.roundRelative(delta)
         val norm = w.norm()
         h[Pair(j, j - 1)] = norm
         V.add(w / norm)

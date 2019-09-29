@@ -260,13 +260,23 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
     enum class BudgetMode {
         NONE, UNIFORM, NEIGHBOR_SHARE
     }
+
     /**
      * Performs SVD-based Tensor Train rounding
      * @param tolerance Relative tolerance of the rounding procedure
      */
-    fun round(tolerance: Double, budgetMode: BudgetMode = BudgetMode.NONE) {
+    fun roundRelative(tolerance: Double, budgetMode: BudgetMode = BudgetMode.NONE) {
+        val delta = if(tolerance == 0.0) 0.0 else (tolerance / sqrt((cores.size - 1).toDouble()) * frobenius())
+        roundAbsolute(delta, budgetMode)
+    }
+
+    /**
+     * Performs SVD-based Tensor Train rounding
+     * @param tolerance Absolute tolerance of the rounding procedure
+     */
+    fun roundAbsolute(tolerance: Double, budgetMode: BudgetMode = BudgetMode.NONE) {
         //init
-        var delta = if(tolerance == 0.0) 0.0 else (tolerance / sqrt((cores.size - 1).toDouble()) * frobenius())
+        var delta = tolerance
 
         //right-to-left orthogonalization
         for(i in cores.lastIndex downTo 1) {
@@ -303,19 +313,19 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
             }
             val svd = Gkmat.svd(true)
             val origSize = svd.singularValues.size
-            val maxIdx = max(0, svd.singularValues.indexOfFirst(origSize) { it <= delta } - 1)
-//            var maxIdx = origSize - 1
-//            var sigma2Sum = 0.0
-//            val delta2 = delta * delta
-//            for (i in origSize downTo 1) {
-//                val sigma = svd.singularValues[i]
-//                val sigma2 = sigma * sigma
-//                if(sigma2Sum + sigma2 < delta2) {
-//                    maxIdx--
-//                    sigma2Sum += sigma2
-//                } else break
-//            }
-//            maxIdx = max(0, maxIdx)
+//            val maxIdx = max(0, svd.singularValues.indexOfFirst(origSize) { it <= delta } - 1)
+            var maxIdx = origSize - 1
+            var sigma2Sum = 0.0
+            val delta2 = delta * delta
+            for (i in origSize-1 downTo 1) {
+                val sigma = svd.singularValues[i]
+                val sigma2 = sigma * sigma
+                if(sigma2Sum + sigma2 < delta2) {
+                    maxIdx--
+                    sigma2Sum += sigma2
+                } else break
+            }
+            maxIdx = max(0, maxIdx)
 //            val eps2_k = sigma2Sum
             if(budgetMode == BudgetMode.UNIFORM) {
                 TODO()

@@ -1,8 +1,6 @@
 
-import faulttree.BasicEvent
-import faulttree.FaultTree
-import faulttree.FaultTreeNode
-import faulttree.galileoParser
+import faulttree.*
+import hu.bme.mit.delta.mdd.MddBuilder
 import org.ejml.simple.SimpleMatrix
 import solver.*
 import java.util.*
@@ -10,13 +8,17 @@ import kotlin.math.abs
 
 fun main(args: Array<String>) {
 
+//    compactioTest()
+//    return
+
 //    val n = 3
 //    val random = Random(1)
 //    val mats = Array(n) {SimpleMatrix.random_DDRM(2, 2, 0.0, 10.0, random)}
 //    val T = kronSumAsTT(mats.toList())
-//    val TInv = approxInvertKronsum(mats.toList(), 500, 0.0)
+//    val TInv = approxInvertKronsum(mats.toList(), 100, 0.0)
 //    T.printElements()
 //    (TInv*T).printElements(numDecimals = 5)
+//    println(TInv.ttRanks())
 //    val eye = TTSquareMatrix.eye(T.modes)
 //    println((TInv * T - eye).frobenius()/eye.frobenius())
 //    return
@@ -206,9 +208,8 @@ fun main(args: Array<String>) {
     val testTreeDesc = longTest;
 
     val Ft = galileoParser.parse(testTreeDesc.byteInputStream())
-    println(Ft.mttfThroughKronsumMethod(10, 50, 0.0, 1e-10))
+    println(Ft.mttfThroughKronsumMethod(50, 50, 1e-16, 1e-16))
     return
-
 //    val kronsumComponents = Ft.getKronsumComponents()
 //    FileWriter("kronsumComponents.txt").use { kronsumFile ->
 //        for (component in kronsumComponents) {
@@ -218,7 +219,7 @@ fun main(args: Array<String>) {
 //    }
 //    FileWriter("modifier.tt").use { modifierFile ->
 //        val modifierForMTTF = Ft.getModifierForMTTF(Ft.getBaseGenerator())
-//        modifierForMTTF.tt.round(1e-20)
+//        modifierForMTTF.tt.roundRelative(1e-20)
 //        println(modifierForMTTF.ttRanks())
 //        modifierFile.write(modifierForMTTF.tt.dataAsString())
 //    }
@@ -226,10 +227,10 @@ fun main(args: Array<String>) {
 
     val baseGenerator = Ft.getBaseGenerator()
     val stateMaskVector = Ft.getStateMaskVector()
-    stateMaskVector.tt.round(0.0001)
+    stateMaskVector.tt.roundRelative(0.0001)
     val residualThreshold = 0.00001 * stateMaskVector.norm()
     val perturbedGeneratorMatrix = Ft.getModifiedGenerator()
-    perturbedGeneratorMatrix.tt.round(0.0001)
+    perturbedGeneratorMatrix.tt.roundRelative(0.0001)
 //
 //    val matFile = FileWriter("modifiedGenerator.tt")
 //    matFile.write(perturbedGeneratorMatrix.tt.dataAsString())
@@ -242,17 +243,17 @@ fun main(args: Array<String>) {
 //    println(perturbedGeneratorMatrix.tt.dataAsString())
 //    return
 
-//    println("ALS:")
-//    val r = 4
-//    val ones = TTVector.ones(stateMaskVector.modes)
-//    var x0 = TTVector.ones(stateMaskVector.modes)
-//    for (i in 0 until r) {
-//        x0 = x0+x0.hadamard(ones)
-//    }
-//    x0 /= r.toDouble()
-//    x0 = TTVector.rand(x0.modes, x0.tt.ranks().toTypedArray())
-//    val alsRes = ALSSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0, residualThreshold = residualThreshold, maxSweeps = 10)
-//    report(perturbedGeneratorMatrix, stateMaskVector, alsRes, residualThreshold)
+    println("ALS:")
+    val r = 4
+    val ones = TTVector.ones(stateMaskVector.modes)
+    var x0 = TTVector.ones(stateMaskVector.modes)
+    for (i in 0 until r) {
+        x0 = x0+x0.hadamard(ones)
+    }
+    x0 /= r.toDouble()
+    x0 = TTVector.rand(x0.modes, x0.tt.ranks().toTypedArray())
+    val alsRes = ALSSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0, residualThreshold = residualThreshold, maxSweeps = 10)
+    report(perturbedGeneratorMatrix, stateMaskVector, alsRes, residualThreshold)
 
 //    println("DMRG:")
 //    var x0DMRG = TTVector.ones(stateMaskVector.modes)
@@ -270,9 +271,9 @@ fun main(args: Array<String>) {
     println("GMRES with Jacobi preconditioner:")
     val prec = jacobiPreconditioner(perturbedGeneratorMatrix, stateMaskVector)
 //    val precdMtx = prec * perturbedGeneratorMatrix
-//    precdMtx.tt.round(0.0001)
+//    precdMtx.tt.roundRelative(0.0001)
     val precdVect = prec*stateMaskVector
-    precdVect.tt.round(0.0001)
+    precdVect.tt.roundRelative(0.0001)
     val resPrecd = TTGMRES(prec, perturbedGeneratorMatrix, precdVect, TTVector.zeros(stateMaskVector.modes), 0.0001)
     report(perturbedGeneratorMatrix, stateMaskVector, resPrecd, residualThreshold)
 
@@ -285,6 +286,31 @@ fun main(args: Array<String>) {
     println()
 }
 
+private fun compactioTest() {
+    val A = BasicEvent("A", 0.5)
+    val B = BasicEvent("B", 0.5)
+    val C = BasicEvent("C", 0.5)
+    val D = BasicEvent("D", 0.5)
+    val E = BasicEvent("E", 0.5)
+    val FT = FaultTree((A and B) or (C and D) and E)
+    val f = FT.nonFailureAsMdd()
+    val varOrdering = FT.getVariableOrdering()
+    val builder = MddBuilder<Boolean>(varOrdering.createSignatureFromTraceInfos(listOf("A", "B")))
+    var c = builder.build(listOf(arrayOf(1, 1), arrayOf(1, 0), arrayOf(0, 1)), true)
+    c = c.union(MddBuilder<Boolean>(varOrdering.defaultSetSignature).build(Array(varOrdering.size) { 0 }, false))
+    f.intersection(c)
+    val compacted = GSCompaction.apply(f, c)
+    for (a in 0..1)
+        for (b in 0..1)
+            for (c1 in 0..1)
+                for (d in 0..1)
+                    for (e in 0..1)
+                        if (compacted[a, b, c1, d, e].data != f[a, b, c1, d, e].data) {
+                            println("[$a, $b, $c1, $d, $e]: f=${f[a, b, c1, d, e].data} comp=${compacted[a, b, c1, d, e].data} care=${c[a, b, c1, d, e].data}")
+                        }
+    return
+}
+
 fun faultTreeGrowthTest() {
     val rand = Random(123)
     var topNode: FaultTreeNode = BasicEvent("ev0", rand.nextDouble()*10.0)
@@ -294,7 +320,7 @@ fun faultTreeGrowthTest() {
         if(i < 28) continue
         val ft = FaultTree(topNode)
         val A = ft.getModifiedGenerator()
-        A.tt.round(1e-30)
+        A.tt.roundRelative(1e-30)
         val b = ft.getStateMaskVector()
         val r = 3
         val ones = TTVector.ones(b.modes)

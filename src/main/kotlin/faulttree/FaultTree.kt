@@ -1,6 +1,7 @@
 package faulttree
 
 import faulttree.BasicEvent.Companion.BasicEventVar
+import hu.bme.mit.delta.java.mdd.MddVariableOrder
 import hu.bme.mit.delta.java.mdd.impl.DefaultJavaMddFactory
 import hu.bme.mit.delta.mdd.LatticeDefinition
 import hu.bme.mit.delta.mdd.MddHandle
@@ -11,9 +12,25 @@ import solver.*
 
 class FaultTree(val topNode: FaultTreeNode) {
 
-    val functionalDeps = arrayListOf<FunctionalDependency>()
+    private val nonFailureAsMdd: MddHandle
+    private val varOrdering: MddVariableOrder
+    init {
+        val vars = getOrderedVariables()
+        val factory = DefaultJavaMddFactory()
+        val order = factory.createMddVariableOrder(LatticeDefinition.forSets())
+        var prev: MddVariable? = null
+        for (variable in vars) {
+            prev = if (prev == null) order.createOnTop(variable.variableDescriptor) else order.createBelow(prev, variable.variableDescriptor)
+        }
+        nonFailureAsMdd = topNode.nonFailureAsMdd(order)
+        varOrdering = order
+    }
 
-    private fun getOrderedVariables(): List<DFTVar> {
+    fun getVariableOrdering(): MddVariableOrder {
+        return varOrdering
+    }
+
+    fun getOrderedVariables(): List<DFTVar> {
         val allVars = topNode.getVariables()
 
         // Order dynamic variables
@@ -54,15 +71,7 @@ class FaultTree(val topNode: FaultTreeNode) {
             .map { it.getKronsumTerm() }
 
     fun nonFailureAsMdd(): MddHandle {
-        val vars = getOrderedVariables()
-        val factory = DefaultJavaMddFactory()
-        val order = factory.createMddVariableOrder(LatticeDefinition.forSets())
-        var prev: MddVariable? = null
-        for (variable in vars) {
-            prev = if (prev == null) order.createOnTop(variable.variableDescriptor) else order.createBelow(prev, variable.variableDescriptor)
-        }
-
-        return topNode.nonFailureAsMdd(order)
+        return nonFailureAsMdd
     }
 
     /**
@@ -90,7 +99,7 @@ class FaultTree(val topNode: FaultTreeNode) {
         val M = getBaseGenerator()
         val S = getModifierForMTTF(M)
         val res = M - S
-        res.tt.round(0.0)
+        res.tt.roundRelative(0.0)
         return res
     }
 
@@ -207,6 +216,8 @@ class FaultTree(val topNode: FaultTreeNode) {
             }
             currHandles = nextHandles
         }
-        return TTVector(TensorTrain(cores))
+        val stateMaskVector = TTVector(TensorTrain(cores))
+        stateMaskVector.tt.roundRelative(0.0)
+        return stateMaskVector
     }
 }
