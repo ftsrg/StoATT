@@ -1,4 +1,4 @@
-package faulttree
+package MDDExtensions
 
 import hu.bme.mit.delta.java.mdd.JavaMddFactory
 import hu.bme.mit.delta.mdd.MddHandle
@@ -8,6 +8,7 @@ object GSCompaction {
     private data class FCS(val f: MddHandle, val c: MddHandle, val s: Substitutability)
 
     fun apply(f: MddHandle, c: MddHandle): MddHandle {
+        TODO("not working :( ")
         if(c.isTerminalZero) return c
         val fcsList = arrayListOf<FCS>()
         val thenMarkings = hashSetOf<MddHandle>()
@@ -60,7 +61,7 @@ object GSCompaction {
                 if(!thenMarkings.contains(f)) markEssentialEdges(f[0], c[1], fcsList, thenMarkings, elseMarkings)
                 else markEssentialEdges(f[1], c[1], fcsList, thenMarkings, elseMarkings)
             }
-            else if(s==GSCompaction.Substitutability.NEG_TO_PON) {
+            else if(s== GSCompaction.Substitutability.NEG_TO_PON) {
                 if(!elseMarkings.contains(f)) markEssentialEdges(f[1], c[0], fcsList, thenMarkings, elseMarkings)
                 else markEssentialEdges(f[0], c[0], fcsList, thenMarkings, elseMarkings)
             }

@@ -84,20 +84,18 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
     }
 
     operator fun times(M: TTSquareMatrix): TTSquareMatrix {
-        assert(this.tt.cores.size == M.tt.cores.size)
-        { "The TT-Matrices must have the same number of cores!" }
+        require(M.modes.contentEquals(this.modes))
+        { "The two square matrices must have the same mode sizes!" }
         val newCores = arrayListOf<CoreTensor>()
         for (c in 0 until modes.size) {
-            assert(modes[c] == M.modes[c])
             val thisCore = this.tt.cores[c]
             val thatCore = M.tt.cores[c]
             val newCore = CoreTensor(modes[c] * modes[c], thisCore.rows * thatCore.rows, thisCore.cols * thatCore.cols)
-            // TODO: nincs kevésbé kellemetlen? :(
             for (i in 0 until modes[c]) {
                 for (j in 0 until modes[c]) {
                     val idx = i * modes[c] + j
                     for (m in 0 until modes[c]) {
-                        newCore.data[i * modes[c] + j] += thisCore.data[i * modes[c] + m].kron(thatCore.data[m * modes[c] + j])
+                        newCore.data[idx] += thisCore.data[i * modes[c] + m].kron(thatCore.data[m * modes[c] + j])
                     }
                 }
             }
@@ -106,19 +104,18 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
         return TTSquareMatrix(TensorTrain(newCores), modes)
     }
 
-    operator fun times(v: TTVector): TTVector {
-        assert(this.tt.cores.size == v.tt.cores.size)
-        { "The TT-vector and the TT-matrix must have the same number of cores! " +
-                "Matrix: ${this.tt.cores.size}, vector: ${v.tt.cores.size}" }
+//    infix fun alsTimes(v: TTVector): TTVector {
+//        require(v.modes.contentEquals(this.modes))
+//        { "The column modes of the matrix must be the same as the modes of the vector!" }
+//
+//    }
 
+    operator fun times(v: TTVector): TTVector {
+        require(v.modes.contentEquals(this.modes))
+        { "The column mode sizes of the matrix must be the same as the vector's mode sizes" }
         val cores = arrayListOf<CoreTensor>()
 
         for ((k, vectCore) in v.tt.cores.withIndex()) {
-            assert(vectCore.modeLength == modes[k])
-            { "The TT-vector must have the same modes as the column modes of the TT-matrix! " +
-                    "Index of first non-matching mode: $k " +
-                    "Vector mode length: ${vectCore.modeLength} " +
-                    "Matrix column mode length: ${modes[k]}" }
             val matCore = tt.cores[k]
             val newCore = CoreTensor(modes[k], matCore.rows * vectCore.rows, matCore.cols * vectCore.cols)
 
@@ -220,8 +217,11 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
 
     fun divAssign(d: Double) = timesAssign(1.0/d)
 
-    //TODO: assertions
-    fun hadamard(B: TTSquareMatrix) = TTSquareMatrix(tt.hadamard(B.tt), modes)
+    fun hadamard(B: TTSquareMatrix): TTSquareMatrix {
+        require(B.modes.contentEquals(this.modes))
+        { "The matrices must have the same mode sizes!"}
+        return TTSquareMatrix(tt.hadamard(B.tt), modes)
+    }
 }
 
 operator fun Double.times(M: TTSquareMatrix) = M * this

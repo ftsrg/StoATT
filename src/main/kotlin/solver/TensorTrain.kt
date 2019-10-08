@@ -44,12 +44,6 @@ class CoreTensor(val modeLength: Int, var rows: Int, var cols: Int) {
 
 class TensorTrain(val cores: ArrayList<CoreTensor>) {
 
-    companion object {
-        fun ttCross() {
-            TODO()
-        }
-    }
-
     constructor() : this(arrayListOf())
 
     fun ranks() = cores.map { it.rows } + listOf(1)
@@ -368,7 +362,6 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
             val thisCore = cores[i]
             val zero = SimpleMatrix(1, thisCore.cols * otherCore.cols)
             v = thisCore.data.foldIndexed(zero) {
-                //TODO: optimize solver.product with kronecker-structured matrix
                 idx, acc, matA ->
 
                 val prod = SimpleMatrix(1, acc.numCols())

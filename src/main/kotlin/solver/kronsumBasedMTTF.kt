@@ -26,14 +26,15 @@ fun FaultTree.mttfThroughKronsumMethod(
     }
 
     val Q1Inv = -approxInvertKronsum(modifiedKronsumComponents, numExpInvTerms, approxInvRounding)
-    var term = Q1Inv * getStateMaskVector()
-//    var term = Q1Inv * TTVector.ones(Q1Inv.modes)
+//    var term = Q1Inv * getStateMaskVector()
+    var term = Q1Inv * TTVector.ones(Q1Inv.modes)
+    term.tt.roundRelative(1e-10)
     var res = term.copy()
     val S = this.getModifierForMTTF(M)
-    S.tt.roundRelative(1e-16)
+    S.tt.roundRelative(1e-10)
     val Q2 = delta + gamma * TTSquareMatrix.eye(M.modes)
     val coeff = -Q1Inv*(Q2-S)
-    coeff.tt.roundRelative(1e-16)
+    coeff.tt.roundRelative(1e-10)
     var res0 = term[0]
     for (i in 0 until numNeumannTerms - 1) {
         term = coeff*term
@@ -91,6 +92,29 @@ fun approxInvertKronsum(components: List<SimpleMatrix>, n: Int, tolerance: Doubl
     }
 
     return res
+}
+
+fun FaultTree.otherMethod() {
+    val kronsumComponents = this.getKronsumComponents()
+    val Rinv = approxInvertKronsum(kronsumComponents, 50, 1e-16)
+    val m = this.getStateMaskVector()
+    val M = TTSquareMatrix.diag(m)
+    val R = this.getBaseRateMatrix()
+    val lF = 1.0
+    val d = R*TTVector.ones(R.modes) + lF * getStrictAbsorbingIndicatorVector()
+    val D = TTSquareMatrix.diag(d)
+    val matToInv = M - Rinv*D
+    var REigMax = 0.0
+    for (component in kronsumComponents) {
+        val lambda = component[0, 1]
+        val mu = component[1,0]
+        REigMax += max(lambda, mu)
+    }
+    val DMax = max(REigMax, lF)
+    val rhoApprox = 1.0+DMax*1.0/REigMax
+    val gamma = 1.0/rhoApprox/rhoApprox
+
+    TODO()
 }
 
 fun kronSumAsTT(components: List<SimpleMatrix>): TTSquareMatrix {

@@ -1,5 +1,9 @@
 
-import faulttree.*
+import MDDExtensions.GSCompaction
+import faulttree.BasicEvent
+import faulttree.FaultTree
+import faulttree.FaultTreeNode
+import faulttree.galileoParser
 import hu.bme.mit.delta.mdd.MddBuilder
 import org.ejml.simple.SimpleMatrix
 import solver.*
@@ -8,7 +12,7 @@ import kotlin.math.abs
 
 fun main(args: Array<String>) {
 
-//    compactioTest()
+//    compactionTest()
 //    return
 
 //    val n = 3
@@ -130,6 +134,15 @@ fun main(args: Array<String>) {
     "ConnectionC3_connectionFailed" lambda=2.0 dorm=0.0;
     """.trimIndent()
 
+    val nagyonshortTest= """
+        toplevel "MyTree";
+                "MyTree" or "EventA" "Masik";
+                "Masik" and "EventB" "EventC";
+
+                "EventA" lambda=.2;
+                "EventB" lambda=.1;
+                "EventC" lambda=0.1;
+    """.trimIndent()
 
     val tallTest =
             """
@@ -205,10 +218,13 @@ fun main(args: Array<String>) {
                 "EventPhi" lambda=0.17;
             """.trimIndent()
 
-    val testTreeDesc = longTest;
+    val testTreeDesc = shortTest
 
     val Ft = galileoParser.parse(testTreeDesc.byteInputStream())
-    println(Ft.mttfThroughKronsumMethod(50, 50, 1e-16, 1e-16))
+    val w = Ft.getWorkingAndJustFailedAsMDD()
+    return
+
+    println(Ft.mttfThroughKronsumMethod(500, 50, 1e-16, 1e-16))
     return
 //    val kronsumComponents = Ft.getKronsumComponents()
 //    FileWriter("kronsumComponents.txt").use { kronsumFile ->
@@ -286,7 +302,7 @@ fun main(args: Array<String>) {
     println()
 }
 
-private fun compactioTest() {
+private fun compactionTest() {
     val A = BasicEvent("A", 0.5)
     val B = BasicEvent("B", 0.5)
     val C = BasicEvent("C", 0.5)
@@ -298,7 +314,6 @@ private fun compactioTest() {
     val builder = MddBuilder<Boolean>(varOrdering.createSignatureFromTraceInfos(listOf("A", "B")))
     var c = builder.build(listOf(arrayOf(1, 1), arrayOf(1, 0), arrayOf(0, 1)), true)
     c = c.union(MddBuilder<Boolean>(varOrdering.defaultSetSignature).build(Array(varOrdering.size) { 0 }, false))
-    f.intersection(c)
     val compacted = GSCompaction.apply(f, c)
     for (a in 0..1)
         for (b in 0..1)

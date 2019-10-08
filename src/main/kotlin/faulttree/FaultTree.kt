@@ -1,5 +1,7 @@
 package faulttree
 
+import MDDExtensions.union
+import MDDExtensions.withoutVar
 import faulttree.BasicEvent.Companion.BasicEventVar
 import hu.bme.mit.delta.java.mdd.MddVariableOrder
 import hu.bme.mit.delta.java.mdd.impl.DefaultJavaMddFactory
@@ -28,6 +30,12 @@ class FaultTree(val topNode: FaultTreeNode) {
 
     fun getVariableOrdering(): MddVariableOrder {
         return varOrdering
+    }
+
+    fun getWorkingAndJustFailedAsMDD(): MddHandle {
+        val working = nonFailureAsMdd
+        return varOrdering.map { withoutVar(working, it) }
+                .reduce { acc, mdd -> acc union mdd }
     }
 
     fun getOrderedVariables(): List<DFTVar> {
@@ -74,19 +82,22 @@ class FaultTree(val topNode: FaultTreeNode) {
         return nonFailureAsMdd
     }
 
-    /**
-     * Calculates the generator matrix of the fault tree's corresponding Markov chain, without taking absorption in
-     * failure states into account (so in this chain, a failed system can get worse).
-     */
-    fun getBaseGenerator(): TTSquareMatrix {
+    fun getBaseRateMatrix(): TTSquareMatrix {
         //TODO: handle single event
-        //TODO: don't care values?
         val cores = arrayListOf<CoreTensor>()
         val vars = getOrderedVariables()
         for ((idx, variable) in vars.withIndex()) {
             cores.add(variable.getBaseCore(cores.lastOrNull()?.cols ?: 1, idx == vars.size-1))
         }
-        val Mpre = TTSquareMatrix(TensorTrain(cores), Array(vars.size) { vars[it].variableDescriptor.domainSize })
+        return TTSquareMatrix(TensorTrain(cores), Array(vars.size) { vars[it].variableDescriptor.domainSize })
+    }
+
+    /**
+     * Calculates the generator matrix of the fault tree's corresponding Markov chain, without taking absorption in
+     * failure states into account (so in this chain, a failed system can get worse).
+     */
+    fun getBaseGenerator(): TTSquareMatrix {
+        val Mpre = getBaseRateMatrix()
         return Mpre-TTSquareMatrix.diag(Mpre*TTVector.ones(Mpre.modes))
     }
 
@@ -103,20 +114,28 @@ class FaultTree(val topNode: FaultTreeNode) {
         return res
     }
 
-    fun getModifierForMTTF(M: TTSquareMatrix): TTSquareMatrix {
-        val stateMaskVector = getStateMaskVector()
-        val meanExitRate=M.diagVect().norm()/M.numCols
-        // TODO: PAND and SPARE might introduce new absorbing states in the original Markov chain
-        val origAbsorbingIndicatorVector = TTVector(TensorTrain(
-                ArrayList(List(stateMaskVector.modes.size) {
-                    CoreTensor(stateMaskVector.modes[it], 1, 1).apply {
+    /***
+     * Returns the indicator vector of the absorbing state set without taking the system failure formula into account.
+     */
+    fun getStrictAbsorbingIndicatorVector(): TTVector {
+        val modes = varOrdering.map { it.domainSize }
+        return TTVector(TensorTrain(
+                ArrayList(List(modes.size) {
+                    CoreTensor(modes[it], 1, 1).apply {
                         set(1, mat[r[1]])
                     }
                 })
         ))
+    }
+
+    fun getModifierForMTTF(M: TTSquareMatrix): TTSquareMatrix {
+        val stateMaskVector = getStateMaskVector()
+        val meanExitRate=M.diagVect().norm()/M.numCols
+        // TODO: PAND and SPARE might introduce new absorbing states in the original Markov chain
+        val origAbsorbingIndicatorVector = getStrictAbsorbingIndicatorVector()
         val failureIndicatorVector = TTVector.ones(stateMaskVector.modes) - stateMaskVector
         val failureIndicatorMatrix = TTSquareMatrix.diag(failureIndicatorVector)
-        return failureIndicatorMatrix * M - M * failureIndicatorMatrix + meanExitRate * TTSquareMatrix.diag(origAbsorbingIndicatorVector) - 2.0 * TTSquareMatrix.diag(M.diagVect().hadamard(failureIndicatorVector))
+        return failureIndicatorMatrix * M + M * failureIndicatorMatrix + meanExitRate * TTSquareMatrix.diag(origAbsorbingIndicatorVector) - 2.0 * TTSquareMatrix.diag(M.diagVect().hadamard(failureIndicatorVector))
     }
 
     private fun applyFunctionalDependency(orig: TTSquareMatrix, functionalDependency: FunctionalDependency): TTSquareMatrix {

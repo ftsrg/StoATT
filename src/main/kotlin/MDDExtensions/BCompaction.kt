@@ -1,9 +1,10 @@
-package faulttree
+package MDDExtensions
 
 import hu.bme.mit.delta.java.mdd.JavaMddFactory
 import hu.bme.mit.delta.mdd.MddHandle
 
 object BCompaction {
+    operator fun invoke(f: MddHandle, c: MddHandle) = apply(f, c)
     fun apply(f: MddHandle, c: MddHandle): MddHandle {
         if(c.isTerminalZero) return c
         val thenMarkings = hashSetOf<MddHandle>()
