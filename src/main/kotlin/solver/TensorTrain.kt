@@ -239,7 +239,7 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
         val R = RQ_T.R.T()
         val Q = RQ_T.Q.T()
         val prevCore = this.cores[coreIdx-1]
-        for ((i, mat) in prevCore.data.withIndex()) {
+        for ((i, _) in prevCore.data.withIndex()) {
             prevCore.data[i] *= R
         }
         prevCore.rows = prevCore.data[0].numRows()

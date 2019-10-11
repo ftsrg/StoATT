@@ -3,6 +3,7 @@ package solver
 import org.ejml.data.SingularMatrixException
 import org.ejml.simple.SimpleMatrix
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.sqrt
 
 //TODO: do something with vectors with elements with different signs
@@ -90,11 +91,10 @@ fun TTReGMRES(
     val residualThreshold = b.norm() * eps
     var x = x0.copy()
     for (i in 0 until maxOuterIter) {
-        x = TTGMRES(A, b, x, eps, maxInnerIter, verbose)
+        val solution = TTGMRES(A, b, x, eps, maxInnerIter, verbose)
+        x = solution.solution
         x.tt.roundRelative(eps)
-        //TODO: use approximate residual from TTGMRES until it seems sufficient
-        val resNorm = (A * x - b).norm()
-        if(resNorm < residualThreshold) break
+        if(solution.resNorm < residualThreshold && (A * x - b).norm() < residualThreshold) break
     }
     return x
 }
@@ -103,16 +103,16 @@ fun TTGMRES(
         preconditioner: TTSquareMatrix,
         A: TTSquareMatrix, b: TTVector, x0: TTVector,
         eps: Double, maxIter: Int = 100
-): TTVector = TTGMRES({preconditioner*(A*it)}, preconditioner*b, x0, eps, maxIter) //TODO: change eps based on preconditioning
+): TTSolution = TTGMRES({preconditioner*(A*it)}, preconditioner*b, x0, eps, maxIter) //TODO: change eps based on preconditioning
 fun TTGMRES(
         A: TTSquareMatrix, b: TTVector, x0: TTVector,
         eps: Double, maxIter: Int = 100,
         verbose: Boolean = false
-): TTVector = TTGMRES(A::times, b, x0, eps, maxIter, verbose)
+): TTSolution = TTGMRES(A::times, b, x0, eps, maxIter, verbose)
 fun TTGMRES(
         linearMap: (TTVector)->TTVector,
         b: TTVector, x0: TTVector,
-        eps: Double, maxIter: Int = 100, verbose: Boolean = false): TTVector {
+        eps: Double, maxIter: Int = 100, verbose: Boolean = false): TTSolution {
     // Reference for the algorithm:
     // S. V. DOLGOV - TT-GMRES: on solution to a linear system in the structured tensor format
     val res0 = b - linearMap(x0)
@@ -122,7 +122,7 @@ fun TTGMRES(
     val V = arrayListOf(res0 / beta)
     val h = hashMapOf<Pair<Int, Int>, Double>() //TODO: vmi értelmesebb ehelyett
     lateinit var y: SimpleMatrix
-    var r: Double
+    var r = 0.0
     var x = x0.copy()
     for (j in 1..maxIter) {
         val delta = eps / R[j - 1]
@@ -152,10 +152,9 @@ fun TTGMRES(
         }
     }
     for (i in 0 until y.numElements) {
-//        println("Real res: ${(linearMap(x) - b).norm()}, computed res: ${R[i]}")
         x = x + y[i] * V[i]
     }
-    return x
+    return TTSolution(x, r)
 }
 
 data class TTSolution(val solution: TTVector, val resNorm: Double)
@@ -461,7 +460,14 @@ private fun ALSLocalIterSolve(
     return ReGMRES(::computeMatVec, F, 10, w0, threshold)
 }
 
-fun DMRGSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.modes), residualThreshold: Double, maxSweeps: Int): TTVector {
+fun DMRGSolve(
+        A: TTSquareMatrix,
+        f: TTVector,
+        x0: TTVector = TTVector.ones(f.modes),
+        residualThreshold: Double,
+        maxSweeps: Int,
+        truncationRelativeThreshold: Double = 0.0
+): TTVector {
     // Reference for the algorithm:
     // I. V. OSELEDETS AND S. V. DOLGOV - Solution of Linear Systems and Matrix Inversion in the TT-Format
 
@@ -568,8 +574,24 @@ fun DMRGSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.mod
                     }
                 }
                 val svd = unfolding.svd()
-                val US = svd.u * svd.w
-                val V = svd.v.T()
+                //TODO: truncation based on the local residual instead of the core's relative error
+                val delta = unfolding.normF() * truncationRelativeThreshold
+                val origSize = svd.singularValues.size
+                var maxIdx = origSize - 1
+                var sigma2Sum = 0.0
+                val delta2 = delta * delta
+                for (i in origSize-1 downTo 1) {
+                    val sigma = svd.singularValues[i]
+                    val sigma2 = sigma * sigma
+                    if(sigma2Sum + sigma2 < delta2) {
+                        maxIdx--
+                        sigma2Sum += sigma2
+                    } else break
+                }
+                maxIdx = max(0, maxIdx)
+                val W = svd.w[0..maxIdx+1, 0..maxIdx+1]
+                val US = svd.u[0..SimpleMatrix.END, 0..maxIdx+1] * W
+                val V = svd.v[0..SimpleMatrix.END, 0..maxIdx+1].T()
                 val leftCore = x.tt.cores[k - 1]
                 for (i in 0 until leftCore.modeLength) {
                     leftCore[i] = US[i * optimizedCore.rows..(i + 1) * optimizedCore.rows, 0..US.numCols()]
@@ -581,8 +603,6 @@ fun DMRGSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.mod
                 }
                 rightCore.updateDimensions()
             }
-
-            //TODO: truncation based on the local residual
         }
 
         val resNorm = (f - A * x).norm()
