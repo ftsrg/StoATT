@@ -2,6 +2,7 @@ package solver
 
 import org.ejml.data.SingularMatrixException
 import org.ejml.simple.SimpleMatrix
+import java.util.*
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.sqrt
@@ -45,9 +46,9 @@ fun jacobiPreconditioner(A: TTSquareMatrix, zeroMaskVector: TTVector): TTSquareM
     return TTSquareMatrix.diag(inv)
 }
 
-fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: Double, zeroMaskVector: TTVector = TTVector.ones(A.modes), log: Boolean = false): TTVector {
+fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: Double, zeroMaskVector: TTVector = TTVector.ones(A.modes), log: Boolean = false): TTSolution {
     for ((idx, mode) in A.modes.withIndex()) {
-        assert(mode == b.modes[idx]) { "The modes of A and b must be identical!" }
+        require(mode == b.modes[idx]) { "The modes of A and b must be identical!" }
     }
     val D = A.diagVect()
     val Dinv = TTSquareMatrix.diag(
@@ -58,45 +59,35 @@ fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: D
     var residual: TTVector
     do {
         x = Dinv * (b - R * x)
-        if (log) {
-            println("Exact:")
-            x.printElements()
-            println()
-        }
         x.tt.roundRelative(roundingAccuracy)
-        if (log) {
-            println("Rounded:")
-            x.printElements()
-            println()
-        }
         residual = b - A * x
-    } while (residual.tt.frobenius() > thresh)
+    } while (residual.norm() > thresh)
     if (log) {
         println()
         println("Final residual:")
         residual.printElements()
     }
-    return x
+    return TTSolution(x, residual.norm())
 }
 
 fun TTReGMRES(
         A: TTSquareMatrix,
         b: TTVector,
         x0: TTVector,
-        eps: Double,
+        relativeResThresold: Double,
         maxInnerIter: Int = 5,
         maxOuterIter: Int = 100,
         verbose: Boolean = false
-): TTVector {
-    val residualThreshold = b.norm() * eps
+): TTSolution {
+    val residualThreshold = b.norm() * relativeResThresold
     var x = x0.copy()
     for (i in 0 until maxOuterIter) {
-        val solution = TTGMRES(A, b, x, eps, maxInnerIter, verbose)
+        val solution = TTGMRES(A, b, x, relativeResThresold, maxInnerIter, verbose)
         x = solution.solution
-        x.tt.roundRelative(eps)
+        x.tt.roundRelative(relativeResThresold)
         if(solution.resNorm < residualThreshold && (A * x - b).norm() < residualThreshold) break
     }
-    return x
+    return TTSolution(x, (A*x-b).norm())
 }
 
 fun TTGMRES(
@@ -190,7 +181,26 @@ private fun solveWithRots(H: SimpleMatrix, beta: Double): MatSolution {
     return MatSolution(y, residualNorm)
 }
 
-fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.modes), residualThreshold: Double, maxSweeps: Int): TTVector {
+fun ALSSolve(
+        A: TTSquareMatrix,
+        f: TTVector,
+        ranks: Array<Int>,
+        random: Random,
+        residualThreshold: Double,
+        maxSweeps: Int
+): TTSolution = ALSSolve(
+        A, f,
+        TTVector.rand(A.modes, ranks, random = random),
+        residualThreshold, maxSweeps
+)
+
+fun ALSSolve(
+        A: TTSquareMatrix,
+        f: TTVector,
+        x0: TTVector = TTVector.ones(f.modes),
+        residualThreshold: Double,
+        maxSweeps: Int
+): TTSolution {
     // Reference for the algorithm:
     // I. V. OSELEDETS AND S. V. DOLGOV - Solution of Linear Systems and Matrix Inversion in the TT-Format
 
@@ -207,6 +217,7 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.mode
     psiCache[0] = Array(1) { Array(1) { mat[r[1]] } }
     val phiCache = Array<Array<Array<SimpleMatrix>>?>(x.modes.size) {null}
     phiCache[phiCache.size-1] = Array(1) {Array(1) { mat[r[1]]}}
+    var resNorm = (A*x-f).norm()
     for (sweep in 0..maxSweeps) {
         for ((k, forward) in sweepRange) {
 
@@ -220,12 +231,10 @@ fun ALSSolve(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.mode
 
         }
 
-        val resNorm = (f - A * x).norm()
-//        println("Resnorm: $resNorm (required: $residualThreshold)")
-        print("$resNorm ")
-        if(resNorm <= residualThreshold) return x
+        resNorm = (f - A * x).norm()
+        if(resNorm <= residualThreshold) break
     }
-    return x
+    return TTSolution(x, resNorm)
 }
 
 private fun applyALSStep(A: TTSquareMatrix, x: TTVector, f: TTVector, k: Int, psiCache: Array<Array<Array<SimpleMatrix>>?>, phiCache: Array<Array<Array<SimpleMatrix>>?>, residualThreshold: Double) {
@@ -358,7 +367,7 @@ private fun applyALSStep(A: TTSquareMatrix, x: TTVector, f: TTVector, k: Int, ps
     } else {
         val w0 = F.createLike()
         //TODO: use current iterate of the core instead of a zero vector as the initial solution
-        w = ALSLocalIterSolve(psi, phi, A, w0, F, k, residualThreshold * 0.00000001)
+        w = ALSLocalIterSolve(psi, phi, A, w0, F, k, residualThreshold * 0.001)
     }
     for (i in 0 until currCore.modeLength) {
         for (beta_minus in 0 until currCore.rows) {
@@ -467,7 +476,7 @@ fun DMRGSolve(
         residualThreshold: Double,
         maxSweeps: Int,
         truncationRelativeThreshold: Double = 0.0
-): TTVector {
+): TTSolution {
     // Reference for the algorithm:
     // I. V. OSELEDETS AND S. V. DOLGOV - Solution of Linear Systems and Matrix Inversion in the TT-Format
 
@@ -475,6 +484,7 @@ fun DMRGSolve(
     for (i in x.tt.cores.size - 2 downTo 1) {
         x.tt.rightOrthogonalizeCore(i)
     }
+    var resNorm = (A * x - f).norm()
     val sweepRange = //list of (core index: Int, forward: Bool)
             (0 until x.modes.size-1).toList().map { it to true } +
             (x.modes.size-1 downTo 1).toList().map { it to false }
@@ -573,7 +583,7 @@ fun DMRGSolve(
                         unfolding[i * optimizedCore.rows, j * optimizedCore.cols] = optimizedCore[i * x.modes[k] + j]
                     }
                 }
-                val svd = unfolding.svd()
+                val svd = unfolding.svd(true)
                 //TODO: truncation based on the local residual instead of the core's relative error
                 val delta = unfolding.normF() * truncationRelativeThreshold
                 val origSize = svd.singularValues.size
@@ -605,28 +615,38 @@ fun DMRGSolve(
             }
         }
 
-        val resNorm = (f - A * x).norm()
-//            println("Resnorm: $resNorm (required: $residualThreshold)")
-        if(resNorm <= residualThreshold) return x
+        resNorm = (f - A * x).norm()
+        if(resNorm <= residualThreshold) break
     }
-    return x
+    return TTSolution(x, resNorm)
 }
 
-fun ALSInvert(A: TTSquareMatrix, maxSweeps: Int): TTSquareMatrix {
-    TODO("not working")
+fun DMRGInvert(A: TTSquareMatrix, maxSweeps: Int, initialGuess: TTVector? = null): TTSquareMatrix {
     val extendedCores = arrayListOf<CoreTensor>()
-    for (origCore in A.tt.cores) {
+    for ((coreIdx, origCore) in A.tt.cores.withIndex()) {
         val extendedCore = CoreTensor(origCore.modeLength * origCore.modeLength, origCore.rows, origCore.cols)
-        for (i in 0 until origCore.modeLength) {
-            extendedCore[i*origCore.modeLength+i] = origCore[i]
+        val m = A.modes[coreIdx]
+        for (r in 0 until m) {
+            for(c in 0 until m) {
+                val matrix = origCore[r, c]
+                for(ext in 0 until m) {
+                    extendedCore[ext*m+r, ext*m+c] = matrix
+                }
+            }
         }
         extendedCores.add(extendedCore)
     }
     val AExtended = TTSquareMatrix(TensorTrain(extendedCores), A.modes.map { it*it }.toTypedArray())
-    val IVec = TTVector(TTSquareMatrix.eye(A.modes).tt) //TODO: check
-    val ranks = arrayOf(1, *(Array(IVec.modes.size-1) { 5 }), 1)
-    val AInvVec = ALSSolve(AExtended, IVec, residualThreshold = 0.001 * IVec.norm(), maxSweeps = maxSweeps, x0 = TTVector.rand(IVec.modes, ranks))
-    return TTSquareMatrix(AInvVec.tt, A.modes) //TODO: check
+    val IVec = TTVector(TTSquareMatrix.eye(A.modes).tt)
+    val ranks = arrayOf(1, *(Array(IVec.modes.size-1) { 3 }), 1)
+    val AInvVec = DMRGSolve(
+            A = AExtended,
+            f = IVec,
+            residualThreshold = 1e-10 * IVec.norm(),
+            maxSweeps = maxSweeps,
+            x0 = initialGuess ?: TTVector.rand(IVec.modes, ranks)
+    ).solution
+    return TTSquareMatrix(AInvVec.tt, A.modes).T() //TODO: check
 }
 
 fun AMEn(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.modes), residualThreshold: Double, maxSweeps: Int): TTVector {

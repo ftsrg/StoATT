@@ -12,8 +12,10 @@ import kotlin.math.abs
 
 fun main(args: Array<String>) {
 
-//    compactionTest()
-//    return
+    val M = TTSquareMatrix.rand(Array(4) {2}, arrayOf(1,3,3,3,1), random =  Random(10))
+    val MInv = DMRGInvert(M, 50)
+    println(((MInv * M) - TTSquareMatrix.eye(M.modes)).frobenius())
+    return
 
 //    val n = 3
 //    val random = Random(1)
@@ -26,8 +28,6 @@ fun main(args: Array<String>) {
 //    val eye = TTSquareMatrix.eye(T.modes)
 //    println((TInv * T - eye).frobenius()/eye.frobenius())
 //    return
-
-//    faultTreeGrowthTest(); return
 
     val shortTest =
             """
@@ -221,11 +221,15 @@ fun main(args: Array<String>) {
     val testTreeDesc = shortTest
 
     val Ft = galileoParser.parse(testTreeDesc.byteInputStream())
-    val w = Ft.getWorkingAndJustFailedAsMDD()
-    return
 
-    println(Ft.mttfThroughKronsumMethod(500, 50, 1e-16, 1e-16))
-    return
+//    val T = TTSquareMatrix.rand(Array(4) {2}, arrayOf(1,3,3,3,1))
+//    val inv = DMRGInvert(T, 100)
+//    println((inv*T-TTSquareMatrix.eye(T.modes)).frobenius())
+//    return
+
+//    println(Ft.mttfThroughKronsumMethod(500, 50, 1e-16, 1e-16))
+//    return
+
 //    val kronsumComponents = Ft.getKronsumComponents()
 //    FileWriter("kronsumComponents.txt").use { kronsumFile ->
 //        for (component in kronsumComponents) {
@@ -268,21 +272,21 @@ fun main(args: Array<String>) {
     }
     x0 /= r.toDouble()
     x0 = TTVector.rand(x0.modes, x0.tt.ranks().toTypedArray())
-    val alsRes = ALSSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0, residualThreshold = residualThreshold, maxSweeps = 10)
+    val alsRes = ALSSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0, residualThreshold = residualThreshold, maxSweeps = 10).solution
     report(perturbedGeneratorMatrix, stateMaskVector, alsRes, residualThreshold)
 
-//    println("DMRG:")
-//    var x0DMRG = TTVector.ones(stateMaskVector.modes)
-//    for (i in 0 until r) {
-//        x0DMRG = x0DMRG+ x0DMRG.hadamard(ones)
-//    }
-//    x0 /= r.toDouble()
-//    val dmrgRes = DMRGSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0DMRG, residualThreshold = residualThreshold, maxSweeps = 10)
-//    report(perturbedGeneratorMatrix, stateMaskVector, dmrgRes, residualThreshold)
+    println("DMRG:")
+    var x0DMRG = TTVector.ones(stateMaskVector.modes)
+    for (i in 0 until r) {
+        x0DMRG = x0DMRG+ x0DMRG.hadamard(ones)
+    }
+    x0 /= r.toDouble()
+    val dmrgRes = DMRGSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0DMRG, residualThreshold = residualThreshold, maxSweeps = 10).solution
+    report(perturbedGeneratorMatrix, stateMaskVector, dmrgRes, residualThreshold)
 
     println("GMRES without preconditioner:")
     val res = TTGMRES(perturbedGeneratorMatrix, stateMaskVector, TTVector.zeros(stateMaskVector.modes), 0.00001, maxIter = 10000, verbose = true)
-    report(perturbedGeneratorMatrix, stateMaskVector, res, residualThreshold)
+    report(perturbedGeneratorMatrix, stateMaskVector, res.solution, residualThreshold)
 
     println("GMRES with Jacobi preconditioner:")
     val prec = jacobiPreconditioner(perturbedGeneratorMatrix, stateMaskVector)
@@ -291,10 +295,10 @@ fun main(args: Array<String>) {
     val precdVect = prec*stateMaskVector
     precdVect.tt.roundRelative(0.0001)
     val resPrecd = TTGMRES(prec, perturbedGeneratorMatrix, precdVect, TTVector.zeros(stateMaskVector.modes), 0.0001)
-    report(perturbedGeneratorMatrix, stateMaskVector, resPrecd, residualThreshold)
+    report(perturbedGeneratorMatrix, stateMaskVector, resPrecd.solution, residualThreshold)
 
     println("TT-Jacobi: ")
-    val res2 = TTJacobi(perturbedGeneratorMatrix, stateMaskVector, 0.0001 * stateMaskVector.norm(), 0.00001, stateMaskVector)
+    val res2 = TTJacobi(perturbedGeneratorMatrix, stateMaskVector, 0.0001 * stateMaskVector.norm(), 0.00001, stateMaskVector).solution
     report(perturbedGeneratorMatrix, stateMaskVector, res2, residualThreshold)
 
     println()
@@ -373,7 +377,7 @@ fun report(linearMap: (TTVector)->TTVector, b: TTVector, x: TTVector, threshold:
     println()
 }
 
-val rand = Random()
+private val rand = Random()
 fun randSquareMtx(size: Int): SimpleMatrix {
     return SimpleMatrix.random_DDRM(size, size, 0.0, 10.0, rand)
 }

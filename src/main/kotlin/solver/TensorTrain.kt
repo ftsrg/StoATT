@@ -9,6 +9,20 @@ class CoreTensor(val modeLength: Int, var rows: Int, var cols: Int) {
     val data = Array(modeLength) { SimpleMatrix(rows, cols) }
 
     operator fun get(modeIdx: Int) = data[modeIdx]
+    operator fun get(rowModeIdx: Int, colModeIdx: Int): SimpleMatrix {
+        val root = sqrt(modeLength.toDouble())
+        if(root.toInt() < root) throw IllegalArgumentException("Couldn't index with square matrix assumption")
+        return get(rowModeIdx*root.toInt()+colModeIdx)
+    }
+
+    operator fun set(j: Int, value: SimpleMatrix) {
+        data[j] = value
+    }
+    operator fun set(rowModeIdx: Int, colModeIdx: Int, value: SimpleMatrix) {
+        val root = sqrt(modeLength.toDouble())
+        if(root.toInt() < root) throw IllegalArgumentException("Couldn't index with square matrix assumption")
+        set(rowModeIdx*root.toInt()+colModeIdx, value)
+    }
 
     operator fun timesAssign(d: Double) {
         for (i in 0 until data.size) {
@@ -22,10 +36,6 @@ class CoreTensor(val modeLength: Int, var rows: Int, var cols: Int) {
             res.data[i] = data[i]*d
         }
         return res
-    }
-
-    operator fun set(j: Int, value: SimpleMatrix) {
-        data[j] = value
     }
 
     fun copy(): CoreTensor {

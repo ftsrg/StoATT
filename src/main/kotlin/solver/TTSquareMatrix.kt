@@ -200,6 +200,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
 
     operator fun div(d: Double): TTSquareMatrix = this * (1.0 / d)
 
+    fun T() = transpose()
     fun transpose(): TTSquareMatrix {
         val transpCores = arrayListOf<CoreTensor>()
         for ((idx, core) in tt.cores.withIndex()) {

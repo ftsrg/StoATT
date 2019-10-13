@@ -1,0 +1,16 @@
+toplevel "MyTree";
+"MyTree" or "EAndD" "AAndFAndBOrC" "MultiAnd";
+
+"EventA" lambda=.2;
+"EventB" lambda=.1;
+"EventC" lambda=0.1;
+"EventD" lambda=.3;
+"EventE" lambda=.423;
+"EventF" lambda=0.5;
+"EventG" lambda=0.56;
+
+"EAndD" and "EventE" "EventD";
+/* (((a and f) and (b or c)) or (b and c and e and g)) */
+"AAndFAndBOrC" and "EventA" "EventF" "BOrC";
+"BOrC" or "EventB" "EventC";
+"MultiAnd" and "EventB" "EventC" "EventE" "EventG";
