@@ -3,6 +3,7 @@ package solver
 import faulttree.FaultTree
 import org.ejml.simple.SimpleMatrix
 import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.max
 
 fun FaultTree.mttfThroughKronsumMethod(
@@ -13,7 +14,6 @@ fun FaultTree.mttfThroughKronsumMethod(
     val kronsumComponents = this.getKronsumComponents()
     val M = getBaseGenerator()
     val delta = M.diag()
-    //TODO: this works only for a static fault tree
     var deltaInfNorm = 0.0
     for (component in kronsumComponents) {
         val lambda = component[0, 1]
@@ -38,10 +38,8 @@ fun FaultTree.mttfThroughKronsumMethod(
     var res0 = term[0]
     for (i in 0 until numNeumannTerms - 1) {
         term = coeff*term
-        term.tt.roundRelative(neumannTermsRound)
-//        res = res + term
-//        res.tt.roundRelative(neumannTermsRound)
         res0 += term[0]
+        term.tt.roundRelative(neumannTermsRound)
         println(res0)
     }
     return res0
@@ -69,9 +67,9 @@ fun approxInvertKronsum(components: List<SimpleMatrix>, n: Int, tolerance: Doubl
     }
     val a_pre = V.row (0).elementPower(2.0)
     val eigenPairs = Array(eig.numberOfEigenvalues) { Pair(eig.eigenvalues[it].real, a_pre[it]) }.toMutableList().sortedBy { it.first }
-    val eigs = Array(eig.numberOfEigenvalues) { Pair(eig.eigenvalues[it].real, eig.getEigenVector(it)) }.toMutableList().sortedBy { it.first }
+//    val eigs = Array(eig.numberOfEigenvalues) { Pair(eig.eigenvalues[it].real, eig.getEigenVector(it)) }.toMutableList().sortedBy { it.first }
     val b = eigenPairs.map { it.first }
-    val a = eigenPairs.map { it.second }.mapIndexed {idx, a -> a * exp(b[idx])}
+    val a = eigenPairs.map { it.second }.mapIndexed {idx, a -> exp(ln(a)+b[idx])} //a*exp(b[idx]) changed to be more stable
 
     val modes = Array(components.size) { 2 }
     var res = TTSquareMatrix.zeros(modes)
@@ -87,34 +85,11 @@ fun approxInvertKronsum(components: List<SimpleMatrix>, n: Int, tolerance: Doubl
             return@Array core
         }
         val M = TTSquareMatrix(TensorTrain(ArrayList(cores.toList())), modes)
-        res = res + a[i]*M // TODO: fix plusAssign and use it here
+        res.plusAssign(a[i]*M)
         res.tt.roundRelative(tolerance)
     }
 
     return res
-}
-
-fun FaultTree.otherMethod() {
-    val kronsumComponents = this.getKronsumComponents()
-    val Rinv = approxInvertKronsum(kronsumComponents, 50, 1e-16)
-    val m = this.getStateMaskVector()
-    val M = TTSquareMatrix.diag(m)
-    val R = this.getBaseRateMatrix()
-    val lF = 1.0
-    val d = R*TTVector.ones(R.modes) + lF * getStrictAbsorbingIndicatorVector()
-    val D = TTSquareMatrix.diag(d)
-    val matToInv = M - Rinv*D
-    var REigMax = 0.0
-    for (component in kronsumComponents) {
-        val lambda = component[0, 1]
-        val mu = component[1,0]
-        REigMax += max(lambda, mu)
-    }
-    val DMax = max(REigMax, lF)
-    val rhoApprox = 1.0+DMax*1.0/REigMax
-    val gamma = 1.0/rhoApprox/rhoApprox
-
-    TODO()
 }
 
 fun kronSumAsTT(components: List<SimpleMatrix>): TTSquareMatrix {
