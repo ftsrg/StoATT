@@ -34,7 +34,6 @@ fun NSInvertMat(M: TTSquareMatrix, iters: Int, roundingAccuracy: Double): TTSqua
     X.divAssign((X * M).tt.frobenius())
     repeat(iters) {
         X = X * (2.0 * I - M * X)
-        println(X.tt.cores.map { "${it.rows}*${it.cols}" })
         X.tt.roundRelative(roundingAccuracy)
     }
     return X
@@ -57,16 +56,15 @@ fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: D
     val R = A - A.diag()
     var x = TTVector.zeros(A.modes)
     var residual: TTVector
+    var i = 0
     do {
         x = Dinv * (b - R * x)
+        x.tt.roundAbsolute(0.0)
         x.tt.roundRelative(roundingAccuracy)
         residual = b - A * x
+        if(log) println("Jacobi iter $i: resnorm=${residual.norm()} maxrank=${x.ttRanks().max()}")
+        i++
     } while (residual.norm() > thresh)
-    if (log) {
-        println()
-        println("Final residual:")
-        residual.printElements()
-    }
     return TTSolution(x, residual.norm())
 }
 
@@ -77,16 +75,21 @@ fun TTReGMRES(
         relativeResThresold: Double,
         maxInnerIter: Int = 5,
         maxOuterIter: Int = 100,
-        verbose: Boolean = false
+        verbose: Boolean = false,
+        approxSpectralRadius: Double = 1.0
 ): TTSolution {
     val residualThreshold = b.norm() * relativeResThresold
     var x = x0.copy()
     for (i in 0 until maxOuterIter) {
         val solution = TTGMRES(A, b, x, relativeResThresold, maxInnerIter, verbose)
         x = solution.solution
-        x.tt.roundRelative(relativeResThresold)
-        if(solution.resNorm < residualThreshold && (A * x - b).norm() < residualThreshold) break
+        if(solution.resNorm < residualThreshold) break
+        x.tt.roundRelative(relativeResThresold/approxSpectralRadius)
+//        val realResNorm = (A * x - b).norm()
+        if(verbose) println("TTReGMRES iter $i: resnorm=${solution.resNorm} maxrank=${x.ttRanks().max()}")
+//        if(solution.resNorm < residualThreshold && (A * x - b).norm() < residualThreshold) break
     }
+    x.tt.roundAbsolute(1e-16)
     return TTSolution(x, (A*x-b).norm())
 }
 
@@ -118,12 +121,14 @@ fun TTGMRES(
     for (j in 1..maxIter) {
         val delta = eps / R[j - 1]
         var w = linearMap(V[j - 1])
+        w.tt.roundAbsolute(0.0)
         w.tt.roundRelative(delta)
         for (i in 0 until j) {
             val t = w * V[i]
             h[Pair(i, j - 1)] = t
             w = w - V[i] * t
         }
+        w.tt.roundAbsolute(0.0)
         w.tt.roundRelative(delta)
         val norm = w.norm()
         h[Pair(j, j - 1)] = norm
@@ -237,10 +242,18 @@ fun ALSSolve(
     return TTSolution(x, resNorm)
 }
 
-private fun applyALSStep(A: TTSquareMatrix, x: TTVector, f: TTVector, k: Int, psiCache: Array<Array<Array<SimpleMatrix>>?>, phiCache: Array<Array<Array<SimpleMatrix>>?>, residualThreshold: Double) {
+private fun applyALSStep(
+        A: TTSquareMatrix,
+        x: TTVector,
+        f: TTVector,
+        k: Int,
+        psiCache: Array<Array<Array<SimpleMatrix>>?>,
+        phiCache: Array<Array<Array<SimpleMatrix>>?>,
+        residualThreshold: Double,
+        maxLocalIters: Int = 200
+) {
     val currCore = x.tt.cores[k]
     //TODO: parallel computation of elements
-    //TODO: dynamic computation of psi and phi (reuse previous results)
 
     fun computePsi(idx: Int) {
         if (idx == 0) return
@@ -358,7 +371,7 @@ private fun applyALSStep(A: TTSquareMatrix, x: TTVector, f: TTVector, k: Int, ps
             }
         }
 
-        //solve Bw=F
+    //solve Bw=F
         w = try {
             FullB.solve(F)
         } catch (e: SingularMatrixException) {
@@ -367,7 +380,7 @@ private fun applyALSStep(A: TTSquareMatrix, x: TTVector, f: TTVector, k: Int, ps
     } else {
         val w0 = F.createLike()
         //TODO: use current iterate of the core instead of a zero vector as the initial solution
-        w = ALSLocalIterSolve(psi, phi, A, w0, F, k, residualThreshold * 0.001)
+        w = ALSLocalIterSolve(psi, phi, A, w0, F, k, residualThreshold * 0.001, maxLocalIters = maxLocalIters)
     }
     for (i in 0 until currCore.modeLength) {
         for (beta_minus in 0 until currCore.rows) {
@@ -385,7 +398,9 @@ private fun ALSLocalIterSolve(
         w0: SimpleMatrix,
         F: SimpleMatrix,
         k: Int,
-        threshold: Double
+        threshold: Double,
+        preconditioner: SimpleMatrix? = null,
+        maxLocalIters: Int = 200
 ): SimpleMatrix {
     val r_k = phi.size
     val r_kminus = psi.size
@@ -414,7 +429,6 @@ private fun ALSLocalIterSolve(
         val YMat = SimpleMatrix(r_k,r_kminus* n_k)
         for(i in 0 until n_k) {
             for(gamma_minus in 0 until r_kminus) {
-                //TODO: check index ranges
                 YMat[0, i*r_kminus+gamma_minus] = y[i*r_kminus*r_k+gamma_minus*r_k..i*r_kminus*r_k+(gamma_minus+1)*r_k, 0..1]
             }
         }
@@ -462,20 +476,23 @@ private fun ALSLocalIterSolve(
             }
         }
 
-        return res
+        return preconditioner?.mult(res) ?: res
     }
 
-    return biCGStab(::computeMatVec, F, 2000, w0, threshold)
-    return ReGMRES(::computeMatVec, F, 10, w0, threshold)
+//    return BiCGStabL(2, ::computeMatVec, preconditioner?.mult(F) ?: F, maxLocalIters, w0, threshold).solution
+    return biCGStab(::computeMatVec, preconditioner?.mult(F) ?: F, maxLocalIters, w0, threshold)
+//    return ReGMRES(::computeMatVec, F, 10, w0, threshold)
 }
 
 fun DMRGSolve(
         A: TTSquareMatrix,
         f: TTVector,
         x0: TTVector = TTVector.ones(f.modes),
-        residualThreshold: Double,
+        absoluteResidualThreshold: Double,
         maxSweeps: Int,
-        truncationRelativeThreshold: Double = 0.0
+        truncationRelativeThreshold: Double = 0.0,
+        verbose: Boolean = false,
+        maxLocalIters: Int = 200
 ): TTSolution {
     // Reference for the algorithm:
     // I. V. OSELEDETS AND S. V. DOLGOV - Solution of Linear Systems and Matrix Inversion in the TT-Format
@@ -550,7 +567,7 @@ fun DMRGSolve(
                 val superX = createSupercoredVector(k, x.tt)
                 val superF = createSupercoredVector(k, f.tt)
                 val superA = createSupercoredMatrix(k, A)
-                applyALSStep(superA, superX, superF, k, psiCache, phiCache, residualThreshold)
+                applyALSStep(superA, superX, superF, k, psiCache, phiCache, absoluteResidualThreshold, maxLocalIters)
                 val optimizedCore = superX.tt.cores[k]
                 val unfolding = SimpleMatrix(optimizedCore.rows * x.modes[k], optimizedCore.cols * x.modes[k + 1])
                 for (i in 0 until x.modes[k]) {
@@ -558,9 +575,24 @@ fun DMRGSolve(
                         unfolding[i * optimizedCore.rows, j * optimizedCore.cols] = optimizedCore[i * x.modes[k + 1] + j]
                     }
                 }
-                val svd = unfolding.svd()
-                val U = svd.u
-                val SV = svd.w * svd.v.T()
+                val svd = unfolding.svd(true)
+                val delta = unfolding.normF() * truncationRelativeThreshold
+                val origSize = svd.singularValues.size
+                var maxIdx = origSize - 1
+                var sigma2Sum = 0.0
+                val delta2 = delta * delta
+                for (i in origSize-1 downTo 1) {
+                    val sigma = svd.singularValues[i]
+                    val sigma2 = sigma * sigma
+                    if(sigma2Sum + sigma2 < delta2) {
+                        maxIdx--
+                        sigma2Sum += sigma2
+                    } else break
+                }
+                maxIdx = max(0, maxIdx)
+                val W = svd.w[0..maxIdx+1, 0..maxIdx+1]
+                val U = svd.u[0..SimpleMatrix.END, 0..maxIdx+1]
+                val SV = W * svd.v[0..SimpleMatrix.END, 0..maxIdx+1].T()
                 val leftCore = x.tt.cores[k]
                 for (i in 0 until leftCore.modeLength) {
                     leftCore[i] = U[i * optimizedCore.rows..(i + 1) * optimizedCore.rows, 0..U.numCols()]
@@ -575,7 +607,7 @@ fun DMRGSolve(
                 val superX = createSupercoredVector(k - 1, x.tt)
                 val superF = createSupercoredVector(k - 1, f.tt)
                 val superA = createSupercoredMatrix(k - 1, A)
-                applyALSStep(superA, superX, superF, k - 1, psiCache, phiCache, residualThreshold)
+                applyALSStep(superA, superX, superF, k - 1, psiCache, phiCache, absoluteResidualThreshold, maxLocalIters)
                 val optimizedCore = superX.tt.cores[k - 1]
                 val unfolding = SimpleMatrix(optimizedCore.rows * x.modes[k-1], optimizedCore.cols * x.modes[k])
                 for (i in 0 until x.modes[k-1]) {
@@ -616,12 +648,21 @@ fun DMRGSolve(
         }
 
         resNorm = (f - A * x).norm()
-        if(resNorm <= residualThreshold) break
+        if(verbose) println("DMRG sweep $sweep: resnorm=$resNorm maxrank=${x.ttRanks().max()}")
+        if(resNorm <= absoluteResidualThreshold) break
     }
     return TTSolution(x, resNorm)
 }
 
-fun DMRGInvert(A: TTSquareMatrix, maxSweeps: Int, initialGuess: TTVector? = null): TTSquareMatrix {
+fun DMRGInvert(
+        A: TTSquareMatrix,
+        maxSweeps: Int,
+        initialGuess: TTVector? = null,
+        verbose: Boolean = false,
+        truncationRelativeThreshold: Double,
+        preconditioner: TTSquareMatrix? = null,
+        maxLocalIters: Int = 200
+): TTSquareMatrix {
     val extendedCores = arrayListOf<CoreTensor>()
     for ((coreIdx, origCore) in A.tt.cores.withIndex()) {
         val extendedCore = CoreTensor(origCore.modeLength * origCore.modeLength, origCore.rows, origCore.cols)
@@ -637,16 +678,22 @@ fun DMRGInvert(A: TTSquareMatrix, maxSweeps: Int, initialGuess: TTVector? = null
         extendedCores.add(extendedCore)
     }
     val AExtended = TTSquareMatrix(TensorTrain(extendedCores), A.modes.map { it*it }.toTypedArray())
-    val IVec = TTVector(TTSquareMatrix.eye(A.modes).tt)
-    val ranks = arrayOf(1, *(Array(IVec.modes.size-1) { 3 }), 1)
+    val eye = tteye(A.modes)
+    val IVec = TTVector((preconditioner?.times(eye) ?: eye).T().tt)
+    val ranks = arrayOf(1, *(Array(IVec.modes.size-1) { 1 }), 1)
+    val x0 = initialGuess ?: TTVector.rand(IVec.modes, ranks, random = Random(10))
+    if(verbose) println("dmrginvert: initresnorm=${(AExtended * x0 - IVec).norm()}")
     val AInvVec = DMRGSolve(
             A = AExtended,
             f = IVec,
-            residualThreshold = 1e-10 * IVec.norm(),
+            x0 = x0,
+            absoluteResidualThreshold = 1e-16 * IVec.norm(),
             maxSweeps = maxSweeps,
-            x0 = initialGuess ?: TTVector.rand(IVec.modes, ranks)
+            verbose = verbose,
+            truncationRelativeThreshold = truncationRelativeThreshold,
+            maxLocalIters = maxLocalIters
     ).solution
-    return TTSquareMatrix(AInvVec.tt, A.modes).T() //TODO: check
+    return TTSquareMatrix(AInvVec.tt, A.modes).T()
 }
 
 fun AMEn(A: TTSquareMatrix, f: TTVector, x0: TTVector = TTVector.ones(f.modes), residualThreshold: Double, maxSweeps: Int): TTVector {

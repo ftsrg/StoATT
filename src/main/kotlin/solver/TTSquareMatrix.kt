@@ -225,4 +225,5 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
     }
 }
 
+fun tteye(modes: Array<Int>) = TTSquareMatrix.eye(modes)
 operator fun Double.times(M: TTSquareMatrix) = M * this

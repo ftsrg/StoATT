@@ -13,9 +13,8 @@ import kotlin.math.abs
 fun main(args: Array<String>) {
 
     val M = TTSquareMatrix.rand(Array(4) {2}, arrayOf(1,3,3,3,1), random =  Random(10))
-    val MInv = DMRGInvert(M, 50)
+    val MInv = DMRGInvert(M, 50, verbose = false, truncationRelativeThreshold = 1e-16)
     println(((MInv * M) - TTSquareMatrix.eye(M.modes)).frobenius())
-    return
 
 //    val n = 3
 //    val random = Random(1)
@@ -281,7 +280,7 @@ fun main(args: Array<String>) {
         x0DMRG = x0DMRG+ x0DMRG.hadamard(ones)
     }
     x0 /= r.toDouble()
-    val dmrgRes = DMRGSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0DMRG, residualThreshold = residualThreshold, maxSweeps = 10).solution
+    val dmrgRes = DMRGSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0DMRG, absoluteResidualThreshold = residualThreshold, maxSweeps = 10).solution
     report(perturbedGeneratorMatrix, stateMaskVector, dmrgRes, residualThreshold)
 
     println("GMRES without preconditioner:")

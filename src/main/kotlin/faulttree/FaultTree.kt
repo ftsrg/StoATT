@@ -10,6 +10,7 @@ import hu.bme.mit.delta.mdd.MddHandle
 import hu.bme.mit.delta.mdd.MddVariable
 import org.ejml.simple.SimpleMatrix
 import solver.*
+import kotlin.math.max
 
 
 class FaultTree(val topNode: FaultTreeNode) {
@@ -17,6 +18,7 @@ class FaultTree(val topNode: FaultTreeNode) {
     private val nonFailureAsMdd: MddHandle
     private val varOrdering: MddVariableOrder
     init {
+        val start = System.currentTimeMillis()
         val vars = getOrderedVariables()
         val factory = DefaultJavaMddFactory()
         val order = factory.createMddVariableOrder(LatticeDefinition.forSets())
@@ -25,6 +27,8 @@ class FaultTree(val topNode: FaultTreeNode) {
             prev = if (prev == null) order.createOnTop(variable.variableDescriptor) else order.createBelow(prev, variable.variableDescriptor)
         }
         nonFailureAsMdd = topNode.nonFailureAsMdd(order)
+        val end = System.currentTimeMillis()
+        println("nonFailureAsMdd: ${end-start}ms")
         varOrdering = order
     }
 
@@ -37,6 +41,14 @@ class FaultTree(val topNode: FaultTreeNode) {
         return varOrdering.map { withoutVar(working, it) }
                 .reduce { acc, mdd -> acc union mdd }
     }
+
+    /**
+     * Returns the highest exit rate in the underlying base Markov-chain, without taking the failure function into
+     * account.
+     */
+    fun getHighestExitRate() =
+        getOrderedVariables().filterIsInstance<BasicEventVar>().sumByDouble { max(it.event.failureRate, it.event.repairRate) }
+
 
     fun getOrderedVariables(): List<DFTVar> {
         val allVars = topNode.getVariables()

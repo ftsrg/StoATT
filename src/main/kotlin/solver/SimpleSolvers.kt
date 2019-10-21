@@ -24,8 +24,9 @@ fun biCGStab(linearMap: (SimpleMatrix) -> SimpleMatrix, b: SimpleMatrix, m: Int,
     var p = r
     var u = r
     for (j in 0 until m) {
-        val alpha = r.scalarProduct(rstar0) / linearMap(p).scalarProduct(rstar0)
-        val q = u - alpha * linearMap(p)
+        val Ap = linearMap(p)
+        val alpha = r.scalarProduct(rstar0) / Ap.scalarProduct(rstar0)
+        val q = u - alpha * Ap
         val update = alpha * (u + q)
         result += update
         val temp = r.scalarProduct(rstar0) // TODO: keep from prev iter
