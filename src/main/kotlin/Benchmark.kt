@@ -5,6 +5,7 @@ import solver.*
 import java.io.FileInputStream
 import java.util.*
 import javax.json.Json
+import javax.json.JsonObject
 import kotlin.math.absoluteValue
 
 private val rand = Random(10)
@@ -23,13 +24,13 @@ private val defaultSolvers = mapOf(
                     verbose = true)
         },
         solver("TTReGMRES") { A, b, rho ->
-            TTReGMRES(A, b,
+            TTReGMRES(null, A, b,
                     TTVector.ones(A.modes),
                     1e-10,
                     approxSpectralRadius = rho,
                     verbose = true)
         },
-        solver("Jacobi") { A, b, rho -> TTJacobi(A, b, b.norm() * 1e-10, 1e-16, log=true) }
+        solver("Jacobi") { A, b, rho -> TTJacobi(A, b, b.norm() * 1e-10, 1e-16, log = true) }
 )
 
 fun main(args: Array<String>) {
@@ -37,9 +38,9 @@ fun main(args: Array<String>) {
     Thread.sleep(500)
 
     val input = args.firstOrNull() ?: "tree.galileo"
-    if(input.endsWith(".galileo"))
+    if (input.endsWith(".galileo"))
         defaultMain(input)
-    else if(input.endsWith(".jsong"))
+    else if (input.endsWith(".json"))
         configedMain(input)
 }
 
@@ -55,14 +56,16 @@ fun defaultMain(file: String) {
 fun configedMain(configPath: String) {
     val config = Json.createReader(FileInputStream(configPath)).use { reader -> reader.readObject() }
     val ftPath = config.getString("path", null) ?: "tree.galileo"
+    val creationStart = System.currentTimeMillis()
     val FT = FileInputStream(ftPath).use {
         val start = System.currentTimeMillis()
         val ft = galileoParser.parse(it)
         val end = System.currentTimeMillis()
-        println("parsing: ${end-start}ms")
+        println("parsing: ${end - start}ms")
         return@use ft
     }
-    val method = config.getInt("method", -1).takeIf { it == 1 || it == 2 } ?: throw RuntimeException("Method number must be 1 or 2!")
+    val methodId = config.getInt("method", -1).takeIf { it == 1 || it == 2 }
+                   ?: throw RuntimeException("Method number must be 1 or 2!")
     val solver = config.getString("solver", null) ?: throw java.lang.RuntimeException("No solver specified!")
     val relativeResNormThreshold = config.getJsonNumber("threshold").doubleValue().absoluteValue
     val pi0Cores = Array(FT.getOrderedVariables().size) {
@@ -72,25 +75,100 @@ fun configedMain(configPath: String) {
     }
     val pi0 = TTVector(TensorTrain(ArrayList(pi0Cores.toList())))
 
-    when(method) {
-        1 -> configedNewerMethod(FT)
-        2 -> configedBasicMethod(FT)
+    val method = when (methodId) {
+        1 -> configedNewerMethod(FT, config)
+        2 -> configedBasicMethod(FT, config)
+        else -> throw RuntimeException()
     }
+
+    val creationEnd = System.currentTimeMillis()
+    println("system creation: ${creationEnd-creationStart}ms")
+
+    val rho = if(methodId == 1) 1.0 else FT.getHighestExitRate()
+    val preconditionerType = config.getString("preconditioner", "")
+    val A = method.sysMatrix.T()
+
+    val precondStart = System.currentTimeMillis()
+    val preconditioner = when(preconditionerType) {
+        "NS" -> NSInvertMat(A, 10, 1e-8)
+        "Jacobi" -> jacobiPreconditioner(A, TTVector.ones(A.modes))
+        "DMRG" -> DMRGInvert(A, 10, truncationRelativeThreshold = 1e-8)
+        else -> null
+    }
+    val precondEnd = System.currentTimeMillis()
+    if(preconditioner != null) println("preconditioner creation: ${precondEnd-precondStart}ms")
+
+    val solutionStart = System.currentTimeMillis()
+    val sysSolution = when (solver) {
+        "DMRG" -> {
+            val maxSweeps = config.getInt("sweeps")
+            val localIters = config.getInt("local_iters", 100)
+            DMRGSolve(
+                    A,
+                    pi0,
+                    absoluteResidualThreshold = relativeResNormThreshold*pi0.norm(),
+                    maxSweeps = maxSweeps,
+                    truncationRelativeThreshold = relativeResNormThreshold / rho,
+                    maxLocalIters = localIters,
+                    verbose = true
+                    )
+        }
+        "GMRES" -> {
+            val maxInnerIters = config.getInt("inner_iters", 5)
+            val maxOuterIters = config.getInt("outer_iters", 200)
+            TTReGMRES(
+                    preconditioner,
+                    A,
+                    pi0,
+                    TTVector.ones(pi0.modes),
+                    relativeResNormThreshold,
+                    maxInnerIters,
+                    maxOuterIters,
+                    verbose = true,
+                    approxSpectralRadius = rho
+            )
+        }
+        "jacobi" -> {
+            TTJacobi(A, pi0, relativeResNormThreshold*pi0.norm(), relativeResNormThreshold/rho, log=true)
+        }
+        "neumann" -> null
+        else -> throw RuntimeException("Solver not found")
+    }
+    if(sysSolution != null) {
+        println()
+        val MTFF = -1.0 * sysSolution.solution * method.rightVector
+        val solutionEnd = System.currentTimeMillis()
+        println("residual norm: ${sysSolution.resNorm}")
+        println("solution time: ${solutionEnd-solutionStart}ms")
+        println("MTFF: $MTFF")
+    } else {
+        val expInvTerms = 0
+        val neumannTerms = 0
+        val approxInvRounding = 1e-16
+        val MTFF = FT.mttfThroughKronsumMethod(neumannTerms, expInvTerms, approxInvRounding, relativeResNormThreshold)
+        val solutionEnd = System.currentTimeMillis()
+        println("solution time: ${solutionEnd-solutionStart}ms")
+        println("MTFF: $MTFF")
+    }
+
+
 }
 
-private fun configedBasicMethod(FT: FaultTree) {
+data class MTFFMethod(val sysMatrix: TTSquareMatrix, val rightVector: TTVector)
+
+private fun configedBasicMethod(FT: FaultTree, config: JsonObject): MTFFMethod {
     val Qmod = FT.getModifiedGenerator()
     val pi0Cores = Array(Qmod.modes.size) {
         val core = CoreTensor(Qmod.modes[it], 1, 1)
         core[0][0] = 1.0
         return@Array core
     }
-    val pi0 = TTVector(TensorTrain(ArrayList(pi0Cores.toList())))
-    val approxSpectralRadius = 2 * FT.getHighestExitRate() // overapproximation based on the Gerschgorin circles
     Qmod.tt.roundAbsolute(1e-16)
+
+    return MTFFMethod(Qmod, TTVector.ones(Qmod.modes))
 }
 
-private fun configedNewerMethod(FT: FaultTree) {
+private fun configedNewerMethod(FT: FaultTree, config: JsonObject): MTFFMethod {
     val m = FT.getStateMaskVector()
     val M = TTSquareMatrix.diag(m)
     val lF = 1.0
@@ -105,15 +183,16 @@ private fun configedNewerMethod(FT: FaultTree) {
             R,
             3,
             TTVector(Rinv0.tt),
-            truncationRelativeThreshold = 1e-10/(2*FT.getHighestExitRate())
+            truncationRelativeThreshold = 1e-10 / (2 * FT.getHighestExitRate())
     )
 
     Rinv.tt.roundAbsolute(1e-16)
-    println("Inversion relative residual: ${((Rinv * R) - tteye(R.modes)).frobenius()/R.numCols}")
+    println("Inversion relative residual: ${((Rinv * R) - tteye(R.modes)).frobenius() / R.numCols}")
     val D = TTSquareMatrix.diag(R * TTVector.ones(R.modes))
     val matToInv = M - Rinv * D
     matToInv.tt.roundAbsolute(1e-16)
 
+    return MTFFMethod(matToInv, Rinv*TTVector.ones(Rinv.modes))
 }
 
 private fun runBasicMethod(FT: FaultTree) {
@@ -150,7 +229,7 @@ private fun runNewerMethod(FT: FaultTree) {
             R,
             3,
             TTVector(Rinv0.tt),
-            truncationRelativeThreshold = 1e-10/(2*FT.getHighestExitRate())
+            truncationRelativeThreshold = 1e-10 / (2 * FT.getHighestExitRate())
     )
 
 //    val Rinv = DMRGInvert(
@@ -161,7 +240,7 @@ private fun runNewerMethod(FT: FaultTree) {
 //            preconditioner = preconditioner
 //    )
     Rinv.tt.roundAbsolute(1e-16)
-    println("Inversion relative residual: ${((Rinv * R) - tteye(R.modes)).frobenius()/R.numCols}")
+    println("Inversion relative residual: ${((Rinv * R) - tteye(R.modes)).frobenius() / R.numCols}")
     val D = TTSquareMatrix.diag(R * TTVector.ones(R.modes))
     val matToInv = M - Rinv * D
     val pi0Cores = Array(R.modes.size) {
@@ -184,6 +263,7 @@ private fun report(result: SolverResult) =
                 "residual norm=${result.residualNorm}, " +
                 "solution ranks = ${result.solution.ttRanks()}, " +
                 "time spent: ${result.durationMillis / 1000.0}s")
+
 private fun report2(result: SolverResult, Rinv: TTSquareMatrix) =
         println("${result.methodDescription}: " +
                 "MTTF=${-(result.solution * (Rinv * TTVector.ones(result.solution.modes)))}, " +
@@ -210,5 +290,5 @@ fun solver(
     }
 }
 
-fun applySolvers(A: TTSquareMatrix, b: TTVector, approxSpectralRadius: Double): Sequence<SolverResult> =
+fun applySolvers(A: TTSquareMatrix, b: TTVector, approxSpectralRadius: Double) =
         defaultSolvers.values.asSequence().map { it(A, b, approxSpectralRadius) }

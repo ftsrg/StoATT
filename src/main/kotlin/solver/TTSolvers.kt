@@ -69,7 +69,20 @@ fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: D
 }
 
 fun TTReGMRES(
+        preconditioner: TTSquareMatrix?,
         A: TTSquareMatrix,
+        b: TTVector,
+        x0: TTVector,
+        relativeResThresold: Double,
+        maxInnerIter: Int = 5,
+        maxOuterIter: Int = 100,
+        verbose: Boolean = false,
+        approxSpectralRadius: Double = 1.0): TTSolution =
+        TTReGMRES(if(preconditioner==null) {v: TTVector -> A*v } else {v: TTVector -> preconditioner*(A*v)},
+                b, x0, relativeResThresold, maxInnerIter, maxOuterIter, verbose, approxSpectralRadius)
+
+fun TTReGMRES(
+        linearMap: (TTVector)->TTVector,
         b: TTVector,
         x0: TTVector,
         relativeResThresold: Double,
@@ -81,16 +94,16 @@ fun TTReGMRES(
     val residualThreshold = b.norm() * relativeResThresold
     var x = x0.copy()
     for (i in 0 until maxOuterIter) {
-        val solution = TTGMRES(A, b, x, relativeResThresold, maxInnerIter, verbose)
+        val solution = TTGMRES(linearMap, b, x, relativeResThresold, maxInnerIter, verbose)
         x = solution.solution
         if(solution.resNorm < residualThreshold) break
         x.tt.roundRelative(relativeResThresold/approxSpectralRadius)
-//        val realResNorm = (A * x - b).norm()
+//        val realResNorm = (linearMap * x - b).norm()
         if(verbose) println("TTReGMRES iter $i: resnorm=${solution.resNorm} maxrank=${x.ttRanks().max()}")
-//        if(solution.resNorm < residualThreshold && (A * x - b).norm() < residualThreshold) break
+//        if(solution.resNorm < residualThreshold && (linearMap * x - b).norm() < residualThreshold) break
     }
     x.tt.roundAbsolute(1e-16)
-    return TTSolution(x, (A*x-b).norm())
+    return TTSolution(x, (linearMap(x) - b).norm())
 }
 
 fun TTGMRES(
@@ -174,7 +187,7 @@ private fun solveWithRots(H: SimpleMatrix, beta: Double): MatSolution {
         g[i] = c * g1 + s * g2
         g[i + 1] = c * g2 - s * g1
     }
-    val residualNorm = Math.abs(g[g.numElements - 1])
+    val residualNorm = abs(g[g.numElements - 1])
     val H1 = H[0..H.numRows() - 1, 0..H.numCols()]
     val y = g[0..g.numElements - 1, 0..1]
     for (i in y.numElements - 1 downTo 0) {
