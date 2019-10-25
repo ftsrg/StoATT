@@ -51,7 +51,7 @@ fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: D
     }
     val D = A.diagVect()
     val Dinv = TTSquareMatrix.diag(
-            NSInvertVect(D, 0.00001 * D.tt.frobenius(), 0.0001, zeroMaskVector)
+            NSInvertVect(D,  thresh*D.norm(), thresh/10, zeroMaskVector)
     )
     val R = A - A.diag()
     var x = TTVector.zeros(A.modes)

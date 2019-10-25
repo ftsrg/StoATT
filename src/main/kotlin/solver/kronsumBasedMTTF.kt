@@ -2,13 +2,15 @@ package solver
 
 import faulttree.FaultTree
 import org.ejml.simple.SimpleMatrix
+import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.max
 
 fun FaultTree.mttfThroughKronsumMethod(
         numNeumannTerms: Int, numExpInvTerms: Int,
-        approxInvRounding: Double = 0.0, neumannTermsRound: Double  = 0.0
+        approxInvRounding: Double = 0.0, neumannTermsRound: Double  = 0.0,
+        convergenceThreshold: Double, verbose: Boolean = false
 ): Double {
     //TODO: all of this works only with static fault trees
     val kronsumComponents = this.getKronsumComponents()
@@ -20,16 +22,22 @@ fun FaultTree.mttfThroughKronsumMethod(
         val mu = component[1,0]
         deltaInfNorm += max(lambda, mu)
     }
-    val gamma = deltaInfNorm
-    val modifiedKronsumComponents = kronsumComponents.map {
+    var gamma = deltaInfNorm
+    var modifiedKronsumComponents = kronsumComponents.map {
         -(it - gamma / kronsumComponents.size * eye(2))
+    }
+    // stabilization of component exps
+    val minEig = modifiedKronsumComponents.flatMap { it.eig().eigenvalues.map { it.real } }.min() ?: 0.0
+    if(minEig < 0.0) {
+        gamma -= minEig*kronsumComponents.size
+        modifiedKronsumComponents = modifiedKronsumComponents.map { it - minEig * eye(2) }
     }
 
     val Q1Inv = -approxInvertKronsum(modifiedKronsumComponents, numExpInvTerms, approxInvRounding)
 //    var term = Q1Inv * getStateMaskVector()
     var term = Q1Inv * TTVector.ones(Q1Inv.modes)
     term.tt.roundRelative(1e-10)
-    var res = term.copy()
+//    var res = term.copy()
     val S = this.getModifierForMTTF(M)
     S.tt.roundRelative(1e-10)
     val Q2 = delta + gamma * TTSquareMatrix.eye(M.modes)
@@ -39,10 +47,12 @@ fun FaultTree.mttfThroughKronsumMethod(
     for (i in 0 until numNeumannTerms - 1) {
         term = coeff*term
         res0 += term[0]
+        if(verbose) println("Neumann iter $i: mtff=${-res0} maxrank=${term.ttRanks().max()}")
+        if(abs(term[0]) < convergenceThreshold) break
+        term.tt.roundAbsolute(1e-10)
         term.tt.roundRelative(neumannTermsRound)
-        println(res0)
     }
-    return res0
+    return -res0
 }
 
 /**

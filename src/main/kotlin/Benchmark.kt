@@ -16,18 +16,18 @@ private val defaultSolvers = mapOf(
 //                    maxSweeps = 50,
 //                    x0 = TTVector.rand(A.modes, arrayOf(1) + Array(A.modes.size - 1) { 3 } + arrayOf(1), random = rand))
 //        },
-        solver("DMRG") { A, b, rho ->
-            DMRGSolve(A, b,
-                    absoluteResidualThreshold = b.norm() * 1e-10,
-                    maxSweeps = 50,
-                    truncationRelativeThreshold = 1e-10 / rho,
-                    verbose = true)
-        },
         solver("TTReGMRES") { A, b, rho ->
             TTReGMRES(null, A, b,
                     TTVector.ones(A.modes),
                     1e-10,
                     approxSpectralRadius = rho,
+                    verbose = true)
+        },
+        solver("DMRG") { A, b, rho ->
+            DMRGSolve(A, b,
+                    absoluteResidualThreshold = b.norm() * 1e-10,
+                    maxSweeps = 50,
+                    truncationRelativeThreshold = 1e-10 / rho,
                     verbose = true)
         },
         solver("Jacobi") { A, b, rho -> TTJacobi(A, b, b.norm() * 1e-10, 1e-16, log = true) }
@@ -38,6 +38,7 @@ fun main(args: Array<String>) {
     Thread.sleep(500)
 
     val input = args.firstOrNull() ?: "tree.galileo"
+    println("Using input file $input")
     if (input.endsWith(".galileo"))
         defaultMain(input)
     else if (input.endsWith(".json"))
@@ -56,6 +57,7 @@ fun defaultMain(file: String) {
 fun configedMain(configPath: String) {
     val config = Json.createReader(FileInputStream(configPath)).use { reader -> reader.readObject() }
     val ftPath = config.getString("path", null) ?: "tree.galileo"
+    println("Fault tree file: $ftPath")
     val creationStart = System.currentTimeMillis()
     val FT = FileInputStream(ftPath).use {
         val start = System.currentTimeMillis()
@@ -91,8 +93,8 @@ fun configedMain(configPath: String) {
     val precondStart = System.currentTimeMillis()
     val preconditioner = when(preconditionerType) {
         "NS" -> NSInvertMat(A, 10, 1e-8)
-        "Jacobi" -> jacobiPreconditioner(A, TTVector.ones(A.modes))
-        "DMRG" -> DMRGInvert(A, 10, truncationRelativeThreshold = 1e-8)
+        "jacobi" -> jacobiPreconditioner(A, TTVector.ones(A.modes))
+        "DMRG" -> DMRGInvert(A, 5, truncationRelativeThreshold = 1e-8, verbose = true)
         else -> null
     }
     val precondEnd = System.currentTimeMillis()
@@ -104,8 +106,14 @@ fun configedMain(configPath: String) {
             val maxSweeps = config.getInt("sweeps")
             val localIters = config.getInt("local_iters", 100)
             DMRGSolve(
-                    A,
-                    pi0,
+                    preconditioner?.times(A)?.apply {
+                        tt.roundAbsolute(1e-16)
+                        tt.roundRelative(1e-16)
+                    } ?: A,
+                    preconditioner?.times(pi0)?.apply {
+                        tt.roundAbsolute(1e-16)
+                        tt.roundRelative(1e-16)
+                    } ?: pi0,
                     absoluteResidualThreshold = relativeResNormThreshold*pi0.norm(),
                     maxSweeps = maxSweeps,
                     truncationRelativeThreshold = relativeResNormThreshold / rho,
@@ -129,7 +137,19 @@ fun configedMain(configPath: String) {
             )
         }
         "jacobi" -> {
-            TTJacobi(A, pi0, relativeResNormThreshold*pi0.norm(), relativeResNormThreshold/rho, log=true)
+            TTJacobi(
+                    preconditioner?.times(A)?.apply {
+                        tt.roundAbsolute(1e-16)
+                        tt.roundRelative(1e-16)
+                    } ?: A,
+                    preconditioner?.times(pi0)?.apply {
+                        tt.roundAbsolute(1e-16)
+                        tt.roundRelative(1e-16)
+                    } ?: pi0,
+                    relativeResNormThreshold*pi0.norm(),
+                    relativeResNormThreshold/rho,
+                    log=true
+            )
         }
         "neumann" -> null
         else -> throw RuntimeException("Solver not found")
@@ -142,10 +162,17 @@ fun configedMain(configPath: String) {
         println("solution time: ${solutionEnd-solutionStart}ms")
         println("MTFF: $MTFF")
     } else {
-        val expInvTerms = 0
-        val neumannTerms = 0
+        val expInvTerms = config.getInt("expinv_terms", 0)
+        val neumannTerms = config.getInt("neumann_terms", 0)
         val approxInvRounding = 1e-16
-        val MTFF = FT.mttfThroughKronsumMethod(neumannTerms, expInvTerms, approxInvRounding, relativeResNormThreshold)
+        val MTFF = FT.mttfThroughKronsumMethod(
+                neumannTerms,
+                expInvTerms,
+                approxInvRounding,
+                relativeResNormThreshold,
+                convergenceThreshold = relativeResNormThreshold, //TODO: separate parameter
+                verbose = true
+                )
         val solutionEnd = System.currentTimeMillis()
         println("solution time: ${solutionEnd-solutionStart}ms")
         println("MTFF: $MTFF")
@@ -158,13 +185,8 @@ data class MTFFMethod(val sysMatrix: TTSquareMatrix, val rightVector: TTVector)
 
 private fun configedBasicMethod(FT: FaultTree, config: JsonObject): MTFFMethod {
     val Qmod = FT.getModifiedGenerator()
-    val pi0Cores = Array(Qmod.modes.size) {
-        val core = CoreTensor(Qmod.modes[it], 1, 1)
-        core[0][0] = 1.0
-        return@Array core
-    }
-    Qmod.tt.roundAbsolute(1e-16)
-
+    Qmod.tt.roundAbsolute(1e-10)
+    Qmod.tt.roundRelative(1e-10)
     return MTFFMethod(Qmod, TTVector.ones(Qmod.modes))
 }
 
@@ -205,10 +227,12 @@ private fun runBasicMethod(FT: FaultTree) {
     val pi0 = TTVector(TensorTrain(ArrayList(pi0Cores.toList())))
     val approxSpectralRadius = 2 * FT.getHighestExitRate() // overapproximation based on the Gerschgorin circles
     Qmod.tt.roundAbsolute(1e-16)
+    Qmod.tt.roundRelative(1e-16)
     for (result in applySolvers(Qmod.T(), pi0, approxSpectralRadius)) {
         report(result)
     }
-    FT.mttfThroughKronsumMethod(50, 50, 1e-16, 1e-16)
+    FT.mttfThroughKronsumMethod(50, 50, 1e-16, 1e-16,
+            convergenceThreshold = 1e-7, verbose = true)
 }
 
 private fun runNewerMethod(FT: FaultTree) {
