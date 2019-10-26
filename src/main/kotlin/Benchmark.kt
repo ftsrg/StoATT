@@ -194,11 +194,16 @@ private fun configedNewerMethod(FT: FaultTree, config: JsonObject): MTFFMethod {
     val m = FT.getStateMaskVector()
     val M = TTSquareMatrix.diag(m)
     val lF = 1.0
-    val gamma = FT.getHighestExitRate()
+    var gamma = FT.getHighestExitRate()
     val R = FT.getBaseRateMatrix() - gamma * tteye(m.modes)
     val kronsumComponents = FT.getKronsumComponents()
-    val modifiedKronsumComponents = kronsumComponents.map {
+    var modifiedKronsumComponents = kronsumComponents.map {
         -(it - gamma / kronsumComponents.size * eye(2))
+    }
+    val minEig = modifiedKronsumComponents.flatMap { it.eig().eigenvalues.map { it.real } }.min() ?: 0.0
+    if(minEig < 0.0) {
+        gamma -= minEig*kronsumComponents.size
+        modifiedKronsumComponents = modifiedKronsumComponents.map { it - minEig * eye(2) }
     }
     val Rinv0 = -approxInvertKronsum(modifiedKronsumComponents, 200, 1e-16)
     val Rinv = DMRGInvert(

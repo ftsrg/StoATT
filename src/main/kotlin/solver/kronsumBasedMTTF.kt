@@ -46,12 +46,14 @@ fun FaultTree.mttfThroughKronsumMethod(
     var res0 = term[0]
     for (i in 0 until numNeumannTerms - 1) {
         term = coeff*term
-        res0 += term[0]
-        if(verbose) println("Neumann iter $i: mtff=${-res0} maxrank=${term.ttRanks().max()}")
-        if(abs(term[0]) < convergenceThreshold) break
+        val term0 = term[0]
+        res0 += term0
+        if(abs(term0) < convergenceThreshold) break
         term.tt.roundAbsolute(1e-10)
         term.tt.roundRelative(neumannTermsRound)
+        if(verbose) println("Neumann iter $i: mtff=${-res0} maxrank=${term.ttRanks().max()}")
     }
+    if(verbose) println("Neumann iter last: mtff=${-res0} maxrank=${term.ttRanks().max()}")
     return -res0
 }
 
