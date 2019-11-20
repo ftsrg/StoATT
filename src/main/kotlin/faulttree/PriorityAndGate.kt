@@ -14,7 +14,7 @@ class PriorityAndGate(val name: String, vararg val inputs: FaultTreeNode): Fault
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun getBasicEvents(): Set<BasicEvent> {
+    override fun getBasicEvents(): Set<AbstractBasicEvent> {
         var ret = inputs[0].getBasicEvents()
         for (idx in 1 until inputs.size)
             ret = ret.union(inputs[idx].getBasicEvents())

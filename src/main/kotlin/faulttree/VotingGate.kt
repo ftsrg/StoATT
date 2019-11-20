@@ -26,7 +26,7 @@ class VotingGate(val k: Int, vararg inputs: FaultTreeNode): StaticGate(*inputs) 
         return weightCached
     }
 
-    override fun getBasicEvents(): Set<BasicEvent> {
+    override fun getBasicEvents(): Set<AbstractBasicEvent> {
         var ret = inputs[0].getBasicEvents()
         for (idx in 1 until inputs.size)
             ret = ret.union(inputs[idx].getBasicEvents())
@@ -41,7 +41,6 @@ class VotingGate(val k: Int, vararg inputs: FaultTreeNode): StaticGate(*inputs) 
         val inputMdds = inputs.map { it.failureAsMdd(order) }
 
         val combinations = arrayListOf<Collection<MddHandle>>()
-        //TODO: use more efficient algorithm for computing the combinations
         fun combHelper(prev: Array<Int>) {
             if(prev.size == k) {
                 combinations.add(prev.map { idx -> inputMdds[idx] })
@@ -69,7 +68,6 @@ class VotingGate(val k: Int, vararg inputs: FaultTreeNode): StaticGate(*inputs) 
 
         val m = inputs.size - k + 1 //At least m inputs must be functioning
         val combinations = arrayListOf<Collection<MddHandle>>()
-        //TODO: use more efficient algorithm for computing the combinations
         fun combHelper(prev: Array<Int>) {
             if(prev.size == m) {
                 combinations.add(prev.map { idx -> inputMdds[idx] })

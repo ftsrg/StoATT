@@ -10,7 +10,7 @@ import solver.eye
 import solver.mat
 import solver.r
 
-class BasicEvent(val name: String, val failureRate: Double, val dormancy: Double = 1.0, val repairRate: Double = 0.0): FaultTreeNode(repairRate > 0.0) {
+open class BasicEvent(name: String, val failureRate: Double, val dormancy: Double = 1.0, val repairRate: Double = 0.0): AbstractBasicEvent(name,repairRate > 0.0) {
     companion object {
 
         class BasicEventVar(val event: BasicEvent): DFTVar(event.descriptor) {

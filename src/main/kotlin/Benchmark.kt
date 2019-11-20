@@ -1,4 +1,3 @@
-
 import faulttree.FaultTree
 import faulttree.galileoParser
 import solver.*
@@ -84,98 +83,147 @@ fun configedMain(configPath: String) {
     }
 
     val creationEnd = System.currentTimeMillis()
-    println("system creation: ${creationEnd-creationStart}ms")
+    println("system creation: ${creationEnd - creationStart}ms")
 
-    val rho = if(methodId == 1) 1.0 else FT.getHighestExitRate()
+    val rho = if (methodId == 1) 1.0 else FT.getHighestExitRate()
     val preconditionerType = config.getString("preconditioner", "")
     val A = method.sysMatrix.T()
 
     val precondStart = System.currentTimeMillis()
-    val preconditioner = when(preconditionerType) {
+    val preconditioner = when (preconditionerType) {
         "NS" -> NSInvertMat(A, 10, 1e-8)
         "jacobi" -> jacobiPreconditioner(A, TTVector.ones(A.modes))
         "DMRG" -> DMRGInvert(A, 5, truncationRelativeThreshold = 1e-8, verbose = true)
         else -> null
     }
     val precondEnd = System.currentTimeMillis()
-    if(preconditioner != null) println("preconditioner creation: ${precondEnd-precondStart}ms")
+    if (preconditioner != null) println("preconditioner creation: ${precondEnd - precondStart}ms")
 
-    val solutionStart = System.currentTimeMillis()
-    val sysSolution = when (solver) {
-        "DMRG" -> {
-            val maxSweeps = config.getInt("sweeps")
-            val localIters = config.getInt("local_iters", 100)
-            DMRGSolve(
-                    preconditioner?.times(A)?.apply {
-                        tt.roundAbsolute(1e-16)
-                        tt.roundRelative(1e-16)
-                    } ?: A,
-                    preconditioner?.times(pi0)?.apply {
-                        tt.roundAbsolute(1e-16)
-                        tt.roundRelative(1e-16)
-                    } ?: pi0,
-                    absoluteResidualThreshold = relativeResNormThreshold*pi0.norm(),
-                    maxSweeps = maxSweeps,
-                    truncationRelativeThreshold = relativeResNormThreshold / rho,
-                    maxLocalIters = localIters,
-                    verbose = true
-                    )
-        }
-        "GMRES" -> {
-            val maxInnerIters = config.getInt("inner_iters", 5)
-            val maxOuterIters = config.getInt("outer_iters", 200)
-            TTReGMRES(
-                    preconditioner,
-                    A,
-                    pi0,
-                    TTVector.ones(pi0.modes),
-                    relativeResNormThreshold,
-                    maxInnerIters,
-                    maxOuterIters,
-                    verbose = true,
-                    approxSpectralRadius = rho
-            )
-        }
-        "jacobi" -> {
-            TTJacobi(
-                    preconditioner?.times(A)?.apply {
-                        tt.roundAbsolute(1e-16)
-                        tt.roundRelative(1e-16)
-                    } ?: A,
-                    preconditioner?.times(pi0)?.apply {
-                        tt.roundAbsolute(1e-16)
-                        tt.roundRelative(1e-16)
-                    } ?: pi0,
-                    relativeResNormThreshold*pi0.norm(),
-                    relativeResNormThreshold/rho,
-                    log=true
-            )
-        }
-        "neumann" -> null
-        else -> throw RuntimeException("Solver not found")
-    }
-    if(sysSolution != null) {
-        println()
-        val MTFF = -1.0 * sysSolution.solution * method.rightVector
-        val solutionEnd = System.currentTimeMillis()
-        println("residual norm: ${sysSolution.resNorm}")
-        println("solution time: ${solutionEnd-solutionStart}ms")
-        println("MTFF: $MTFF")
-    } else {
-        val expInvTerms = config.getInt("expinv_terms", 0)
-        val neumannTerms = config.getInt("neumann_terms", 0)
-        val approxInvRounding = 1e-16
-        val MTFF = FT.mttfThroughKronsumMethod(
-                neumannTerms,
-                expInvTerms,
-                approxInvRounding,
-                relativeResNormThreshold,
-                convergenceThreshold = relativeResNormThreshold, //TODO: separate parameter
-                verbose = true
+    val moment = config.getInt("moment", 1)
+
+    if (moment == 1) {
+        val solutionStart = System.currentTimeMillis()
+        val sysSolution = when (solver) {
+            "DMRG" -> {
+                val maxSweeps = config.getInt("sweeps")
+                val localIters = config.getInt("local_iters", 100)
+                DMRGSolve(
+                        preconditioner?.times(A)?.apply {
+                            tt.roundAbsolute(1e-16)
+                            tt.roundRelative(1e-16)
+                        } ?: A,
+                        preconditioner?.times(pi0)?.apply {
+                            tt.roundAbsolute(1e-16)
+                            tt.roundRelative(1e-16)
+                        } ?: pi0,
+                        absoluteResidualThreshold = relativeResNormThreshold * pi0.norm(),
+                        maxSweeps = maxSweeps,
+                        truncationRelativeThreshold = relativeResNormThreshold / rho,
+                        maxLocalIters = localIters,
+                        verbose = true
                 )
+            }
+            "GMRES" -> {
+                val maxInnerIters = config.getInt("inner_iters", 5)
+                val maxOuterIters = config.getInt("outer_iters", 200)
+                TTReGMRES(
+                        preconditioner,
+                        A,
+                        pi0,
+                        TTVector.ones(pi0.modes),
+                        relativeResNormThreshold,
+                        maxInnerIters,
+                        maxOuterIters,
+                        verbose = true,
+                        approxSpectralRadius = rho
+                )
+            }
+            "jacobi" -> {
+                TTJacobi(
+                        preconditioner?.times(A)?.apply {
+                            tt.roundAbsolute(1e-16)
+                            tt.roundRelative(1e-16)
+                        } ?: A,
+                        preconditioner?.times(pi0)?.apply {
+                            tt.roundAbsolute(1e-16)
+                            tt.roundRelative(1e-16)
+                        } ?: pi0,
+                        relativeResNormThreshold * pi0.norm(),
+                        relativeResNormThreshold / rho,
+                        log = true
+                )
+            }
+            "neumann" -> null
+            else -> throw RuntimeException("Solver not found")
+        }
+        if (sysSolution != null) {
+            println()
+            val MTFF = -1.0 * sysSolution.solution * method.rightVector
+            val solutionEnd = System.currentTimeMillis()
+            println("residual norm: ${sysSolution.resNorm}")
+            println("solution time: ${solutionEnd - solutionStart}ms")
+            println("MTFF: $MTFF")
+        } else {
+            val expInvTerms = config.getInt("expinv_terms", 0)
+            val neumannTerms = config.getInt("neumann_terms", 0)
+            val approxInvRounding = 1e-16
+            val MTFF = FT.mttfThroughKronsumMethod(
+                    neumannTerms,
+                    expInvTerms,
+                    approxInvRounding,
+                    relativeResNormThreshold,
+                    convergenceThreshold = relativeResNormThreshold, //TODO: separate parameter
+                    verbose = true
+            )
+            val solutionEnd = System.currentTimeMillis()
+            println("solution time: ${solutionEnd - solutionStart}ms")
+            println("MTFF: $MTFF")
+        }
+    } else {
+        val solutionStart = System.currentTimeMillis()
+
+        val nthMoment = when (solver) {
+            "DMRG" -> {
+                val maxSweeps = config.getInt("sweeps")
+                val localIters = config.getInt("local_iters", 100)
+                FT.getNthMoment(moment) { M, b -> DMRGSolve(
+                        M,
+                        b,
+                        absoluteResidualThreshold = relativeResNormThreshold * pi0.norm(), //TODO: something more relevant
+                        maxSweeps = maxSweeps,
+                        verbose = true,
+                        maxLocalIters = localIters
+                ) }
+            }
+            "GMRES" -> {
+                val maxInnerIters = config.getInt("inner_iters", 5)
+                val maxOuterIters = config.getInt("outer_iters", 200)
+                FT.getNthMoment(moment) { M, b ->
+                    TTReGMRES( null,
+                            M, b,
+                            TTVector.ones(pi0.modes),
+                            relativeResNormThreshold,
+                            maxInnerIters,
+                            maxOuterIters,
+                            verbose = true,
+                            approxSpectralRadius = rho
+                    ) }
+            }
+            "jacobi" -> FT.getNthMoment(moment) { M, b ->
+                TTJacobi(
+                        M, b,
+                        relativeResNormThreshold * pi0.norm(),
+                        relativeResNormThreshold / rho,
+                        log = true
+                )
+            }
+            else -> throw RuntimeException("Solver not found")
+        }
+
         val solutionEnd = System.currentTimeMillis()
-        println("solution time: ${solutionEnd-solutionStart}ms")
-        println("MTFF: $MTFF")
+        println("solution time: ${solutionEnd - solutionStart}ms")
+        println("${moment}th moment: $nthMoment")
+
     }
 
 
@@ -201,8 +249,8 @@ private fun configedNewerMethod(FT: FaultTree, config: JsonObject): MTFFMethod {
         -(it - gamma / kronsumComponents.size * eye(2))
     }
     val minEig = modifiedKronsumComponents.flatMap { it.eig().eigenvalues.map { it.real } }.min() ?: 0.0
-    if(minEig < 0.0) {
-        gamma -= minEig*kronsumComponents.size
+    if (minEig < 0.0) {
+        gamma -= minEig * kronsumComponents.size
         modifiedKronsumComponents = modifiedKronsumComponents.map { it - minEig * eye(2) }
     }
     val Rinv0 = -approxInvertKronsum(modifiedKronsumComponents, 200, 1e-16)
@@ -219,7 +267,7 @@ private fun configedNewerMethod(FT: FaultTree, config: JsonObject): MTFFMethod {
     val matToInv = M - Rinv * D
     matToInv.tt.roundAbsolute(1e-16)
 
-    return MTFFMethod(matToInv, Rinv*TTVector.ones(Rinv.modes))
+    return MTFFMethod(matToInv, Rinv * TTVector.ones(Rinv.modes))
 }
 
 private fun runBasicMethod(FT: FaultTree) {

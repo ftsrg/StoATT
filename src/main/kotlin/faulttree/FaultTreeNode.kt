@@ -4,7 +4,7 @@ import hu.bme.mit.delta.mdd.MddHandle
 import hu.bme.mit.delta.mdd.MddVariableDescriptor
 import hu.bme.mit.delta.mdd.MddVariableOrder
 abstract class FaultTreeNode(val repairable: Boolean) {
-    abstract fun getBasicEvents(): Set<BasicEvent>
+    abstract fun getBasicEvents(): Set<AbstractBasicEvent>
     abstract fun failureAsMdd(order: MddVariableOrder): MddHandle
     abstract fun nonFailureAsMdd(order: MddVariableOrder): MddHandle
     abstract fun getOrderingWeight(): Double
