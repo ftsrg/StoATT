@@ -245,7 +245,7 @@ fun main(args: Array<String>) {
 //    return
 
     val baseGenerator = Ft.getBaseGenerator()
-    val stateMaskVector = Ft.getStateMaskVector()
+    val stateMaskVector = Ft.getOperationalIndicatorVector()
     stateMaskVector.tt.roundRelative(0.0001)
     val residualThreshold = 0.00001 * stateMaskVector.norm()
     val perturbedGeneratorMatrix = Ft.getModifiedGenerator()
@@ -339,7 +339,7 @@ fun faultTreeGrowthTest() {
         val ft = FaultTree(topNode)
         val A = ft.getModifiedGenerator()
         A.tt.roundRelative(1e-30)
-        val b = ft.getStateMaskVector()
+        val b = ft.getOperationalIndicatorVector()
         val r = 3
         val ones = TTVector.ones(b.modes)
         var x0 = TTVector.ones(b.modes)

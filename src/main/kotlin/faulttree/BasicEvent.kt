@@ -10,9 +10,12 @@ import solver.eye
 import solver.mat
 import solver.r
 
-open class BasicEvent(name: String, val failureRate: Double, val dormancy: Double = 1.0, val repairRate: Double = 0.0): AbstractBasicEvent(name,repairRate > 0.0) {
-    companion object {
+class BasicEvent(name: String, val failureRate: Double, val dormancy: Double = 1.0, val repairRate: Double = 0.0): AbstractBasicEvent(name,repairRate > 0.0) {
+    override fun getSteadyStateVector(): SimpleMatrix {
+        return mat[r[repairRate/(failureRate+repairRate)], r[failureRate/(failureRate+repairRate)]]
+    }
 
+    companion object {
         class BasicEventVar(val event: BasicEvent): DFTVar(event.descriptor) {
 
             fun getKronsumTerm(): SimpleMatrix {
@@ -58,7 +61,6 @@ open class BasicEvent(name: String, val failureRate: Double, val dormancy: Doubl
             }
 
         }
-
     }
 
     private val descriptor = MddVariableDescriptor.create(name, 2)

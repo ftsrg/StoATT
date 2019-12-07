@@ -68,6 +68,46 @@ public interface GalileoListener extends ParseTreeListener {
 	 */
 	void exitLambda(GalileoParser.LambdaContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link GalileoParser#phase}.
+	 * @param ctx the parse tree
+	 */
+	void enterPhase(GalileoParser.PhaseContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link GalileoParser#phase}.
+	 * @param ctx the parse tree
+	 */
+	void exitPhase(GalileoParser.PhaseContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link GalileoParser#rateMatrix}.
+	 * @param ctx the parse tree
+	 */
+	void enterRateMatrix(GalileoParser.RateMatrixContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link GalileoParser#rateMatrix}.
+	 * @param ctx the parse tree
+	 */
+	void exitRateMatrix(GalileoParser.RateMatrixContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link GalileoParser#matrixRow}.
+	 * @param ctx the parse tree
+	 */
+	void enterMatrixRow(GalileoParser.MatrixRowContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link GalileoParser#matrixRow}.
+	 * @param ctx the parse tree
+	 */
+	void exitMatrixRow(GalileoParser.MatrixRowContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link GalileoParser#numFailureStates}.
+	 * @param ctx the parse tree
+	 */
+	void enterNumFailureStates(GalileoParser.NumFailureStatesContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link GalileoParser#numFailureStates}.
+	 * @param ctx the parse tree
+	 */
+	void exitNumFailureStates(GalileoParser.NumFailureStatesContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link GalileoParser#probability}.
 	 * @param ctx the parse tree
 	 */

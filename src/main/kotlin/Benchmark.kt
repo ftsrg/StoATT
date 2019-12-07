@@ -239,7 +239,7 @@ private fun configedBasicMethod(FT: FaultTree, config: JsonObject): MTFFMethod {
 }
 
 private fun configedNewerMethod(FT: FaultTree, config: JsonObject): MTFFMethod {
-    val m = FT.getStateMaskVector()
+    val m = FT.getOperationalIndicatorVector()
     val M = TTSquareMatrix.diag(m)
     val lF = 1.0
     var gamma = FT.getHighestExitRate()
@@ -289,7 +289,7 @@ private fun runBasicMethod(FT: FaultTree) {
 }
 
 private fun runNewerMethod(FT: FaultTree) {
-    val m = FT.getStateMaskVector()
+    val m = FT.getOperationalIndicatorVector()
     val M = TTSquareMatrix.diag(m)
     val lF = 1.0
 //    val R =
