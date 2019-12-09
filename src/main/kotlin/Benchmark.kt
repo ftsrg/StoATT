@@ -229,7 +229,7 @@ fun configedMain(configPath: String) {
 
 }
 
-data class MTFFMethod(val sysMatrix: TTSquareMatrix, val rightVector: TTVector)
+private data class MTFFMethod(val sysMatrix: TTSquareMatrix, val rightVector: TTVector)
 
 private fun configedBasicMethod(FT: FaultTree, config: JsonObject): MTFFMethod {
     val Qmod = FT.getModifiedGenerator()

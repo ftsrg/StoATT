@@ -14,13 +14,13 @@ fun complexTreeString(numModules: Int, controllerProps: ()->String, voterProps: 
     builder.appendln("\"System\" $listBuilder;")
     builder.appendln()
     repeat(numModules) { moduleId ->
-        builder.appendln("//Module $moduleId")
+        builder.appendln("/* Module $moduleId */")
         builder.appendln("\"Module$moduleId\" or \"Channels$moduleId\" \"Voters$moduleId\";")
         builder.appendln("\"Channels$moduleId\" 2of3 \"ChannelR$moduleId\" \"ChannelG$moduleId\" \"ChannelB$moduleId\";")
         builder.appendln("\"Voters$moduleId\" and \"VoterA$moduleId\" \"VoterB$moduleId\";")
-        builder.appendln("\"ChannelR$moduleId or \"IOR$moduleId\" \"LGR\";")
-        builder.appendln("\"ChannelG$moduleId or \"IOG$moduleId\" \"LGG\";")
-        builder.appendln("\"ChannelB$moduleId or \"IOB$moduleId\" \"LGB\";")
+        builder.appendln("\"ChannelR$moduleId\" or \"IOR$moduleId\" \"LGR\";")
+        builder.appendln("\"ChannelG$moduleId\" or \"IOG$moduleId\" \"LGG\";")
+        builder.appendln("\"ChannelB$moduleId\" or \"IOB$moduleId\" \"LGB\";")
         builder.appendln("\"IOR$moduleId\" ${controllerProps()};")
         builder.appendln("\"IOG$moduleId\" ${controllerProps()};")
         builder.appendln("\"IOB$moduleId\" ${controllerProps()};")
@@ -62,23 +62,36 @@ fun getExponentialTree(numModules: Int,
 
 fun configJson(
         modelPath: String,
+        moment: Int,
+        steadyState: Boolean = false,
         solver: String = "DMRG",
         preconditioner: String = "none",
         method: Int = 2,
         threshold: Double = 1e-7,
         otherOptions: String? = null
 ) = """ {
-    "path" : $modelPath,
+    "path" : "${modelPath.replace("\\", "\\\\")}",
+    "moment" : $moment,
+    ${if (steadyState) "\"steady\" : true," else ""}
     "threshold" : $threshold,
-    "solver" : $solver,
+    "solver" : "$solver",
     "method" : $method,
-    "preconditioner" : $preconditioner,
+    "preconditioner" : "$preconditioner"
     ${if (otherOptions != null) ",$otherOptions" else ""}
+    }
+""".trimIndent()
+
+fun configJsonSteadyOnly(
+        modelPath: String
+) = """ {
+    "path" : "${modelPath.replace("\\", "\\\\")}",
+    "steady" : true
     }
 """.trimIndent()
 
 fun configArgs(
         modelPath: String,
+        moment: Int,
         solver: String = "DMRG",
         preconditioner: String = "none",
         method: Int = 2,
@@ -86,7 +99,8 @@ fun configArgs(
         steady: Boolean = false,
         otherOptions: String? = null
 ) = """
-    --file=$modelPath
+    --file=${modelPath.replace("\\", "\\\\")}
+    --moment=$moment
     --solver=$solver
     --preconditioner=$preconditioner
     --threshold=$threshold
@@ -96,5 +110,5 @@ fun configArgs(
 """.trimIndent()
 
 fun configArgsSteadyOnly(modelPath: String) = """
-    --file=$modelPath --steady
+    --file=${modelPath.replace("\\", "\\\\")} --steady
 """.trimIndent()

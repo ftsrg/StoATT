@@ -30,7 +30,7 @@ fun FaultTree.getNthMoment(n: Int, solver: (TTSquareMatrix, TTVector)->TTSolutio
     return left * right
 }
 
-fun FaultTree.getSteadyStateDistribution(solver: (TTSquareMatrix, TTVector) -> TTSolution): TTVector {
+fun FaultTree.getSteadyStateDistribution(): TTVector {
 //    this will be needed only for DFT-s
 //    val R = this.getBaseRateMatrix()
 //    val Q = R - TTSquareMatrix.diag(R*TTVector.ones(R.modes))
