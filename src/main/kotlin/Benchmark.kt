@@ -186,7 +186,7 @@ fun configedMain(configPath: String) {
             "DMRG" -> {
                 val maxSweeps = config.getInt("sweeps")
                 val localIters = config.getInt("local_iters", 100)
-                FT.getNthMoment(moment) { M, b -> DMRGSolve(
+                FT.getNthMoment(moment, relativeResNormThreshold) { M, b, threshold -> DMRGSolve(
                         M,
                         b,
                         absoluteResidualThreshold = relativeResNormThreshold * pi0.norm(), //TODO: something more relevant
@@ -198,7 +198,7 @@ fun configedMain(configPath: String) {
             "GMRES" -> {
                 val maxInnerIters = config.getInt("inner_iters", 5)
                 val maxOuterIters = config.getInt("outer_iters", 200)
-                FT.getNthMoment(moment) { M, b ->
+                FT.getNthMoment(moment, relativeResNormThreshold) { M, b, threshold ->
                     TTReGMRES( null,
                             M, b,
                             TTVector.ones(pi0.modes),
@@ -209,10 +209,10 @@ fun configedMain(configPath: String) {
                             approxSpectralRadius = rho
                     ) }
             }
-            "jacobi" -> FT.getNthMoment(moment) { M, b ->
+            "jacobi" -> FT.getNthMoment(moment, relativeResNormThreshold) { M, b, threshold ->
                 TTJacobi(
                         M, b,
-                        relativeResNormThreshold * pi0.norm(),
+                        threshold, //relativeResNormThreshold * pi0.norm(),
                         relativeResNormThreshold / rho,
                         log = true
                 )

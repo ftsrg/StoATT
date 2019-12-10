@@ -4,10 +4,10 @@ import faulttree.BasicEvent.Companion.BasicEventVar
 import faulttree.FaultTree
 import faulttree.PHBasicEvent.Companion.PHEventVar
 
-fun FaultTree.mtff(solver: (TTSquareMatrix, TTVector)->TTSolution) =
-        getNthMoment(1, solver)
+fun FaultTree.mtff(relativeThreshold: Double, solver: (TTSquareMatrix, TTVector, threshold: Double)->TTSolution) =
+        getNthMoment(1, relativeThreshold, solver)
 
-fun FaultTree.getNthMoment(n: Int, solver: (TTSquareMatrix, TTVector)->TTSolution): Double {
+fun FaultTree.getNthMoment(n: Int, relativeThreshold: Double, solver: (TTSquareMatrix, TTVector, threshold: Double)->TTSolution): Double {
 
     val variables = this.getOrderedVariables()
     val pi0Cores = Array(variables.size) {
@@ -22,9 +22,9 @@ fun FaultTree.getNthMoment(n: Int, solver: (TTSquareMatrix, TTVector)->TTSolutio
 
     repeat(n) {
         if( (left.ttRanks().max() ?: 0) < (right.ttRanks().max() ?: 0) )
-            left = solver(QT, left).solution
+            left = solver(QT, left, relativeThreshold*left.norm()).solution
         else
-            right = solver(Q, right).solution
+            right = solver(Q, right, relativeThreshold*right.norm()).solution
     }
 
     return left * right

@@ -1,4 +1,3 @@
-
 import benchmark.configArgs
 import benchmark.configArgsSteadyOnly
 import benchmark.configJson
@@ -51,15 +50,15 @@ import java.io.FileWriter
 //    }
 //}
 
-class TTReliabilityTool: CliktCommand() {
+class TTReliabilityTool : CliktCommand() {
     override fun run() = Unit
 }
 
-class Gen: CliktCommand(help = "Used for generating benchmark model files and corresponding config files.") {
-    val modules by option("-m", "--modules").int().restrictTo(min=1).required()
+class Gen : CliktCommand(help = "Used for generating benchmark model files and corresponding config files.") {
+    val modules by option("-m", "--modules").int().restrictTo(min = 1).required()
     val name by option("--name")
     val folder by option().default("")
-//    sealed class BESpec {
+    //    sealed class BESpec {
 //        data class Exponential(val lambda: Double, val mu: Double) : BESpec()
 //        data class Markov(val rateMatrix: String) : BESpec()
 //    }
@@ -69,8 +68,9 @@ class Gen: CliktCommand(help = "Used for generating benchmark model files and co
     val configFolder by option("--cfgfolder")
     val argConfig by option("--argcfg",
             help = "Generate config files as @-files (text files specifying CLI arguments)").flag()
+
     override fun run() {
-        val folder = if(folder == "" || folder.endsWith(File.separator)) folder else "$folder${File.separator}"
+        val folder = if (folder == "" || folder.endsWith(File.separator)) folder else "$folder${File.separator}"
         val treeString = benchmark.getExponentialTree(modules,
                 controllerRates.first, controllerRates.second,
                 voterRates.first, voterRates.second)
@@ -83,13 +83,13 @@ class Gen: CliktCommand(help = "Used for generating benchmark model files and co
         // Config files use the default values for now (Unpreconditioned DMRG using method 2 with threshold 1e-7)
         // Separate config files are generated for computing each moment from 1st to 5th, and for the steady state metrics
         val configFolder =
-                configFolder?.let { if(it=="" || it.endsWith(File.separator)) it else "$it${File.separator}" }
+                configFolder?.let { if (it == "" || it.endsWith(File.separator)) it else "$it${File.separator}" }
                 ?: folder
-        if(json) {
-            repeat(5) {moment ->
-                val cfgPath = "$configFolder${name}_cfg_moment_${moment+1}.json"
+        if (json) {
+            repeat(5) { moment ->
+                val cfgPath = "$configFolder${name}_cfg_moment_${moment + 1}.json"
                 FileWriter(cfgPath).use {
-                    it.write(configJson(path, moment+1))
+                    it.write(configJson(path, moment + 1, otherOptions = """"sweeps" : 100 """))
                 }
             }
             val cfgPath = "$configFolder${name}_cfg_moment_steady.json"
@@ -98,10 +98,10 @@ class Gen: CliktCommand(help = "Used for generating benchmark model files and co
             }
         }
         if (argConfig) {
-            repeat(5) {moment ->
-                val cfgPath = "$configFolder${name}_cfg_moment_${moment+1}.args"
+            repeat(5) { moment ->
+                val cfgPath = "$configFolder${name}_cfg_moment_${moment + 1}.args"
                 FileWriter(cfgPath).use {
-                    it.write(configArgs(path, moment+1))
+                    it.write(configArgs(path, moment + 1, otherOptions = "--sweeps=100"))
                 }
             }
             val cfgPath = "$configFolder${name}_cfg_steady.args"
@@ -112,49 +112,103 @@ class Gen: CliktCommand(help = "Used for generating benchmark model files and co
     }
 }
 
-class Calc: CliktCommand(help =
+class Calc : CliktCommand(help =
 """Used for performing the analysis of a model. If a config file is given as input, all the other options are ignored.
 """.trimMargin()
 ) {
     val file by option("-f", "--file",
             help = "The file path of the Galileo file describing the model to analyze.")
             .required()
+
     object MomentArgs : OptionGroup() {
-        val moment by option("-m", "--moment").int().restrictTo(min=1).required()
+        val moment by option("-m", "--moment").int().restrictTo(min = 1).required()
         val solver by option("-s", "--solver")
                 .choice("DMRG", "Neumann", "GMRES", "Jacobi").default("DMRG")
         val preconditioner by option("-prec", "--preconditioner").choice("NS", "DMRG", "Jacobi")
         val threshold by option("-th", "--threshold").double().default(1e-7)
         val method by option("--method").choice("1", "2").int().default(2)
+        val sweeps by option("--sweeps").int()
+        val expinvterms by option("--expinvterms").int().restrictTo(min = 0)
+        val neumannterms by option("--neumannterms").int().restrictTo(min = 0)
     }
+
     val momentArgs by MomentArgs.cooccurring()
     val steady by option("-st", "--steady").flag()
 
     override fun run() {
         println("Fault tree file: $file")
         val tree = FileInputStream(file).use { galileoParser.parse(it) }
-        if(steady) {
+        if (steady) {
             val start = System.currentTimeMillis()
             val ssvector = tree.getSteadyStateDistribution()
             val ssmetrics = tree.computeSteadyStateMetrics(ssvector)
             val end = System.currentTimeMillis()
             println("MTTF: ${ssmetrics.MTTF}, MTTR: ${ssmetrics.MTTR}, MTBF: ${ssmetrics.MTBF}")
-            println("Computation time: ${end-start}ms")
+            println("Computation time: ${end - start}ms")
         }
-        if(momentArgs != null) {
+        if (momentArgs != null) {
+            val momentArgs = momentArgs!!
+            val rho = if (momentArgs.moment == 1) 1.0 else tree.getHighestExitRate()
             val start = System.currentTimeMillis()
-            TODO()
+            val res = if (momentArgs.moment == 1 && momentArgs.solver == "Neumann") {
+                val expInvTerms = momentArgs.expinvterms ?: throw RuntimeException("expinvterms argument needed")
+                val neumannTerms = momentArgs.neumannterms ?: throw RuntimeException("neumannterms argument needed")
+                val approxInvRounding = 1e-16
+                tree.mttfThroughKronsumMethod(
+                        neumannTerms,
+                        expInvTerms,
+                        approxInvRounding,
+                        momentArgs.threshold,
+                        convergenceThreshold = momentArgs.threshold, //TODO: separate parameter
+                        verbose = true
+                )
+            } else {
+                val solverFunc: (TTSquareMatrix, TTVector, Double) -> TTSolution = when (momentArgs.solver) {
+                    "DMRG" -> { M, b, threshold ->
+                        DMRGSolve(
+                                M,
+                                b,
+                                absoluteResidualThreshold = threshold,
+                                maxSweeps = momentArgs.sweeps ?: 0,
+                                verbose = true
+                        )
+                    }
+                    "GMRES" -> { M, b, threshold ->
+                        TTReGMRES(null,
+                                M, b,
+                                TTVector.ones(b.modes),
+                                momentArgs.threshold,
+                                //maxInnerIters,
+                                //maxOuterIters,
+                                verbose = true,
+                                approxSpectralRadius = rho
+                        )
+                    }
+                    "Jacobi" -> { M, b, threshold ->
+                        TTJacobi(
+                                M, b,
+                                threshold, //relativeResNormThreshold * pi0.norm(),
+                                momentArgs.threshold / rho,
+                                log = true
+                        )
+                    }
+                    else -> throw RuntimeException("Unknown solver")
+                }
+                tree.getNthMoment(momentArgs.moment, momentArgs.threshold, solverFunc)
+            }
             val end = System.currentTimeMillis()
         }
     }
 
     private data class MTFFMethod(val sysMatrix: TTSquareMatrix, val rightVector: TTVector)
+
     private fun symmetricMethod(FT: FaultTree): MTFFMethod {
         val Qmod = FT.getModifiedGenerator()
         Qmod.tt.roundAbsolute(1e-10)
         Qmod.tt.roundRelative(1e-10)
         return MTFFMethod(Qmod, TTVector.ones(Qmod.modes))
     }
+
     private fun nonSymmetricMethod(FT: FaultTree): MTFFMethod {
         val m = FT.getOperationalIndicatorVector()
         val M = TTSquareMatrix.diag(m)
@@ -361,7 +415,7 @@ class Calc: CliktCommand(help =
 }
 
 fun main(args: Array<String>) =
-    TTReliabilityTool()
-            .subcommands(Gen(), Calc())
-            .main(args)
+        TTReliabilityTool()
+                .subcommands(Gen(), Calc())
+                .main(args)
 
