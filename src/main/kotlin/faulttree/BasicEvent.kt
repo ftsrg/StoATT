@@ -11,6 +11,10 @@ import solver.mat
 import solver.r
 
 class BasicEvent(name: String, val failureRate: Double, val dormancy: Double = 1.0, val repairRate: Double = 0.0): AbstractBasicEvent(name,repairRate > 0.0) {
+    override fun getVariable(): DFTVar {
+        return variable
+    }
+
     override fun getSteadyStateVector(): SimpleMatrix {
         return mat[r[repairRate/(failureRate+repairRate)], r[failureRate/(failureRate+repairRate)]]
     }

@@ -16,8 +16,14 @@ import java.util.*
  */
 class PHBasicEvent(name: String, val rateMatrix: SimpleMatrix, val numFailureStates: Int = 1) :
         AbstractBasicEvent(name, isRepairable(rateMatrix, numFailureStates) ) {
+    override fun getVariable(): DFTVar {
+        return variable
+    }
+
     override fun getSteadyStateVector(): SimpleMatrix {
-        val Q = rateMatrix - rateMatrix * ones(rateMatrix.numCols())
+        val Q = rateMatrix
+        val D = rateMatrix * ones(rateMatrix.numCols(), 1)
+        for (i in 0 until Q.numRows()) Q[i,i] = -D[i]
         Q.setRow(Q.numRows()-1,0, *(DoubleArray(Q.numCols()) {1.0})) // normalization constraint
         val b = SimpleMatrix(rateMatrix.numCols(), 1)
         b[b.numElements-1] = 1.0

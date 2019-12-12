@@ -40,6 +40,97 @@ fun biCGStab(linearMap: (SimpleMatrix) -> SimpleMatrix, b: SimpleMatrix, m: Int,
     return result
 }
 
+fun BiCGStabL(l: Int, linearMap: (SimpleMatrix) -> SimpleMatrix, b: SimpleMatrix, m: Int,
+              x0: SimpleMatrix = SimpleMatrix(b.numRows(), 1), threshold: Double): SolverResult {
+    //TODO: not working
+
+    // Based on:
+    // Sleipjen, Fokkema: BICGSTAB(L) FOR LINEAR EQUATIONS INVOLVING UNSYMMETRIC MATRICES WITH COMPLEX SPECTRUM
+
+    var k = -l
+    val r0 = ones(b.numElements)
+    var r = b-linearMap(x0)
+    var rho0 = 1.0
+    var alpha = 0.0
+    var omega = 1.0
+    var u = x0.createLike()
+    var x = x0.copy()
+    var iter = -1
+    while( (iter++) < m && r.normF() > threshold) {
+        k += l
+        rho0 *= -omega
+        val rhats = Array(l+1) { SimpleMatrix(0,0) }
+        val uhats = Array(l+1) {SimpleMatrix(0,0)}
+        var xhat = x.copy()
+        uhats[0] = u.copy()
+        rhats[0] = r.copy()
+
+        // Bi-CG part
+        for(j in 0 until l) {
+            val rho1 = rhats[0].scalarProduct(r0)
+            val beta =  alpha*rho1/rho0
+            rho0 = rho1
+            for(i in 0..j) {
+                uhats[i] = rhats[i]-beta*uhats[i]
+            }
+            uhats[j+1] = linearMap(uhats[j])
+            val gamma = uhats[j+1].scalarProduct(r0)
+            alpha = rho0/gamma
+            for(i in 0..j){
+                rhats[i] -= alpha*uhats[i+1]
+            }
+            rhats[j+1]=linearMap(rhats[j])
+            xhat += alpha * uhats[0]
+        }
+
+        // MR part
+        val taus = Array(l+1) { Array(l+1) { 0.0 } }
+        val sigmas = Array(l+1) {0.0}
+        val gammaprimes = Array(l+1) {0.0}
+        for(j in 1..l) {
+            for (i in 1 until j) {
+                taus[i][j]=rhats[j].scalarProduct(rhats[i])/sigmas[i]
+                rhats[j] -= taus[i][j]*rhats[i]
+            }
+            sigmas[j] = rhats[j].scalarProduct(rhats[j])
+            gammaprimes[j] = rhats[0].scalarProduct(rhats[j])/sigmas[j]
+        }
+
+        val gammas = Array(l+1) { 0.0 }
+        gammas[l] = gammaprimes[l]
+        omega=gammas[l]
+        for (j in l-1 downTo 1) {
+            gammas[j] = gammaprimes[j]
+            for(i in j+1 until l) {
+                gammas[j] -= taus[j][i]*gammas[i+1]
+            }
+        }
+        val gammadprimes = Array(l) { 0.0 }
+        for(j in 1 until l) {
+            gammadprimes[j] = gammas[j+1]
+            for(i in j+1 until l) {
+                gammadprimes[j] += taus[j][i]*gammas[i+1]
+            }
+        }
+
+        // update
+        xhat += gammas[1]*rhats[0]
+        rhats[0] -= gammaprimes[l]*rhats[l]
+        uhats[0] -= gammas[l]*uhats[l]
+
+        for (j in 1 until l) {
+            uhats[0] -= gammas[j]*uhats[j]
+            xhat += gammadprimes[j]*rhats[j]
+            rhats[0] -= gammaprimes[j]*rhats[j]
+        }
+
+        u = uhats[0]
+        r = rhats[0]
+        x = xhat
+    }
+    return SolverResult(x, r.normF())
+}
+
 fun GMRES(linearMap: (SimpleMatrix)->SimpleMatrix, b: SimpleMatrix, m: Int,
           x0: SimpleMatrix = SimpleMatrix(b.numRows(), 1)): SolverResult {
     val r0 = b - linearMap(x0)

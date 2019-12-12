@@ -62,7 +62,7 @@ class VotingGate(val k: Int, vararg inputs: FaultTreeNode): StaticGate(*inputs) 
     override fun nonFailureAsMdd(order: MddVariableOrder): MddHandle {
         val basicEvents = getBasicEvents()
         val builder = MddBuilder<Boolean>(order.createSignatureFromTraceInfos(basicEvents.map { it.name }))
-        var ret = builder.build(Array(basicEvents.size) {1}, false)
+        var ret = builder.build(Array(basicEvents.size) {0}, true)
 
         val inputMdds = inputs.map { it.nonFailureAsMdd(order) }
 

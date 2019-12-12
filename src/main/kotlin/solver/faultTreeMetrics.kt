@@ -16,18 +16,20 @@ fun FaultTree.getNthMoment(n: Int, relativeThreshold: Double, solver: (TTSquareM
         return@Array core
     }
     val Q = this.getModifiedGenerator()
+    Q.tt.roundAbsolute(1e-16)
+    Q.tt.roundRelative(1e-16)
     val QT = Q.T()
     var left = TTVector(TensorTrain(ArrayList(pi0Cores.toList())))
     var right = TTVector.ones(left.modes)
 
     repeat(n) {
-        if( (left.ttRanks().max() ?: 0) < (right.ttRanks().max() ?: 0) )
+        if( (left.ttRanks().max() ?: 0) <= (right.ttRanks().max() ?: 0) )
             left = solver(QT, left, relativeThreshold*left.norm()).solution
         else
             right = solver(Q, right, relativeThreshold*right.norm()).solution
     }
 
-    return left * right
+    return (if(n % 2 == 0) 1 else -1) * (left * right)
 }
 
 fun FaultTree.getSteadyStateDistribution(): TTVector {

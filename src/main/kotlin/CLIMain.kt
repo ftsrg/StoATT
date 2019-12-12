@@ -1,3 +1,4 @@
+
 import benchmark.configArgs
 import benchmark.configArgsSteadyOnly
 import benchmark.configJson
@@ -11,59 +12,27 @@ import com.github.ajalt.clikt.parameters.types.choice
 import com.github.ajalt.clikt.parameters.types.double
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.clikt.parameters.types.restrictTo
-import faulttree.FaultTree
 import faulttree.galileoParser
 import solver.*
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileWriter
 
-//enum class SolverType { GMRES, JACOBI }
-//class FTSolver: CliktCommand() {
-//    val file by option("--file", "-f", metavar = "FILENAME")
-//    val solver by option("--solver", "-s")
-//            .choice(
-//                    "gmres" to SolverType.GMRES,
-//                    "jacobi" to SolverType.JACOBI
-//            ).default(SolverType.JACOBI)
-//    val preconditioner by option("--precond", "-p")
-//            .choice(
-//                    "jacobi",
-//                    "ns",
-//                    "none")
-//            .default("none")
-//    val threshold by option("--threshold", "-t").double().validate { require(it>0) { "Threshold value must be positive!" } }
-//    override fun run() {
-//        val inputStream = when(file) {
-//            null -> System.`in`
-//            else -> FileInputStream(file)
-//        }
-//        val faulttree = galileoParser.parse(inputStream)
-//        val transientGeneratorMatrix = faulttree.getModifiedGenerator()
-//        val stateMaskVector = faulttree.getOperationalIndicatorVector()
-//        when(solver) {
-//            SolverType.GMRES -> {
-//                TODO()
-//            }
-//            SolverType.JACOBI -> TODO()
-//        }
-//    }
-//}
-
 class TTReliabilityTool : CliktCommand() {
     override fun run() = Unit
 }
 
 class Gen : CliktCommand(help = "Used for generating benchmark model files and corresponding config files.") {
-    val modules by option("-m", "--modules").int().restrictTo(min = 1).required()
+    val modules by option("-m", "--modules").int().restrictTo(min = 1).multiple().validate { it.isNotEmpty() }
     val name by option("--name")
     val folder by option().default("")
-    //    sealed class BESpec {
+//    sealed class BESpec {
 //        data class Exponential(val lambda: Double, val mu: Double) : BESpec()
 //        data class Markov(val rateMatrix: String) : BESpec()
 //    }
     val controllerRates by option("--ctrl").double().pair().required()
     val voterRates by option("--voter").double().pair().required()
+    val phaseType by option().flag()
     val json by option(help = "Generate config files in json format").flag()
     val configFolder by option("--cfgfolder")
     val argConfig by option("--argcfg",
@@ -71,42 +40,62 @@ class Gen : CliktCommand(help = "Used for generating benchmark model files and c
 
     override fun run() {
         val folder = if (folder == "" || folder.endsWith(File.separator)) folder else "$folder${File.separator}"
-        val treeString = benchmark.getExponentialTree(modules,
-                controllerRates.first, controllerRates.second,
-                voterRates.first, voterRates.second)
-        val name = name ?: "tree_with_${modules}_modules.galileo"
-        val path = "$folder$name"
-        FileWriter(path).use { file ->
-            file.write(treeString)
-        }
+        for(modules in modules) {
+            val treeString =
+                    if(phaseType)
+                        benchmark.complexTreeString(modules,
+                                benchmark.markov(
+                                        mat[
+//                                                r[0.0,2.0,0.0,0.5,0.0],
+//                                                r[0.0,0.0,3.0,0.7,0.2],
+//                                                r[0.0,0.0,0.0,0.0,0.8],
+//                                                r[30.0,0.0,0.0,0.0,0.5],
+//                                                r[20.0,10.0,0.0,0.0,0.0]
+                                                r[0.0,2.0,0.0],
+                                                r[1.0,0.0,3.0],
+                                                r[5.0,0.0,0.0]
+                                        ], 1),
+                                benchmark.expFixed(voterRates.first, voterRates.second)
+                        )
+                    else
+                        benchmark.getExponentialTree(modules,
+                    controllerRates.first, controllerRates.second,
+                    voterRates.first, voterRates.second)
+            val name = name ?: "tree_with_${modules}_modules"
+            val path = "$folder${name}.galileo"
+            FileWriter(path).use { file ->
+                file.write(treeString)
+            }
 
-        // Config files use the default values for now (Unpreconditioned DMRG using method 2 with threshold 1e-7)
-        // Separate config files are generated for computing each moment from 1st to 5th, and for the steady state metrics
-        val configFolder =
-                configFolder?.let { if (it == "" || it.endsWith(File.separator)) it else "$it${File.separator}" }
-                ?: folder
-        if (json) {
-            repeat(5) { moment ->
-                val cfgPath = "$configFolder${name}_cfg_moment_${moment + 1}.json"
+
+            // Config files use the default values for now (Unpreconditioned DMRG using method 2 with threshold 1e-7)
+            // Separate config files are generated for computing each moment from 1st to 5th, and for the steady state metrics
+            val configFolder =
+                    configFolder?.let { if (it == "" || it.endsWith(File.separator)) it else "$it${File.separator}" }
+                    ?: folder
+            if (json) {
+                repeat(5) { moment ->
+                    val cfgPath = "$configFolder${name}_cfg_moment_${moment + 1}.json"
+                    FileWriter(cfgPath).use {
+                        it.write(configJson(path, moment + 1, otherOptions = """"sweeps" : 100 """))
+                    }
+                }
+                val cfgPath = "$configFolder${name}_cfg_moment_steady.json"
                 FileWriter(cfgPath).use {
-                    it.write(configJson(path, moment + 1, otherOptions = """"sweeps" : 100 """))
+                    it.write(configJsonSteadyOnly(path))
                 }
             }
-            val cfgPath = "$configFolder${name}_cfg_moment_steady.json"
-            FileWriter(cfgPath).use {
-                it.write(configJsonSteadyOnly(path))
-            }
-        }
-        if (argConfig) {
-            repeat(5) { moment ->
-                val cfgPath = "$configFolder${name}_cfg_moment_${moment + 1}.args"
-                FileWriter(cfgPath).use {
-                    it.write(configArgs(path, moment + 1, otherOptions = "--sweeps=100"))
+            if (argConfig) {
+                repeat(5) { moment ->
+                    val cfgPath = "$configFolder${name}_cfg_moment_${moment + 1}.args"
+                    FileWriter(cfgPath).use {
+                        it.write(configArgs(path, moment + 1, otherOptions = "--sweeps=100"))
+                    }
                 }
-            }
-            val cfgPath = "$configFolder${name}_cfg_steady.args"
-            FileWriter(cfgPath).use {
-                it.write(configArgsSteadyOnly(path))
+                val cfgPath = "$configFolder${name}_cfg_steady.args"
+                FileWriter(cfgPath).use {
+                    it.write(configArgsSteadyOnly(path))
+                }
             }
         }
     }
@@ -117,14 +106,14 @@ class Calc : CliktCommand(help =
 """.trimMargin()
 ) {
     val file by option("-f", "--file",
-            help = "The file path of the Galileo file describing the model to analyze.")
+            help = "The path of the Galileo file describing the model to analyze.")
             .required()
 
     object MomentArgs : OptionGroup() {
         val moment by option("-m", "--moment").int().restrictTo(min = 1).required()
         val solver by option("-s", "--solver")
                 .choice("DMRG", "Neumann", "GMRES", "Jacobi").default("DMRG")
-        val preconditioner by option("-prec", "--preconditioner").choice("NS", "DMRG", "Jacobi")
+        val preconditioner by option("-prec", "--preconditioner").choice("NS", "DMRG", "Jacobi", "none")
         val threshold by option("-th", "--threshold").double().default(1e-7)
         val method by option("--method").choice("1", "2").int().default(2)
         val sweeps by option("--sweeps").int()
@@ -148,7 +137,7 @@ class Calc : CliktCommand(help =
         }
         if (momentArgs != null) {
             val momentArgs = momentArgs!!
-            val rho = if (momentArgs.moment == 1) 1.0 else tree.getHighestExitRate()
+            val rho = tree.getHighestExitRate()
             val start = System.currentTimeMillis()
             val res = if (momentArgs.moment == 1 && momentArgs.solver == "Neumann") {
                 val expInvTerms = momentArgs.expinvterms ?: throw RuntimeException("expinvterms argument needed")
@@ -169,6 +158,7 @@ class Calc : CliktCommand(help =
                                 M,
                                 b,
                                 absoluteResidualThreshold = threshold,
+                                truncationRelativeThreshold = momentArgs.threshold / rho,
                                 maxSweeps = momentArgs.sweeps ?: 0,
                                 verbose = true
                         )
@@ -197,49 +187,12 @@ class Calc : CliktCommand(help =
                 tree.getNthMoment(momentArgs.moment, momentArgs.threshold, solverFunc)
             }
             val end = System.currentTimeMillis()
+            println("${momentArgs.moment}th moment: $res")
+            println("Moment calculation time: ${end-start}ms")
         }
     }
 
     private data class MTFFMethod(val sysMatrix: TTSquareMatrix, val rightVector: TTVector)
-
-    private fun symmetricMethod(FT: FaultTree): MTFFMethod {
-        val Qmod = FT.getModifiedGenerator()
-        Qmod.tt.roundAbsolute(1e-10)
-        Qmod.tt.roundRelative(1e-10)
-        return MTFFMethod(Qmod, TTVector.ones(Qmod.modes))
-    }
-
-    private fun nonSymmetricMethod(FT: FaultTree): MTFFMethod {
-        val m = FT.getOperationalIndicatorVector()
-        val M = TTSquareMatrix.diag(m)
-        val lF = 1.0
-        var gamma = FT.getHighestExitRate()
-        val R = FT.getBaseRateMatrix() - gamma * tteye(m.modes)
-        val kronsumComponents = FT.getKronsumComponents()
-        var modifiedKronsumComponents = kronsumComponents.map {
-            -(it - gamma / kronsumComponents.size * eye(2))
-        }
-        val minEig = modifiedKronsumComponents.flatMap { it.eig().eigenvalues.map { it.real } }.min() ?: 0.0
-        if (minEig < 0.0) {
-            gamma -= minEig * kronsumComponents.size
-            modifiedKronsumComponents = modifiedKronsumComponents.map { it - minEig * eye(2) }
-        }
-        val Rinv0 = -approxInvertKronsum(modifiedKronsumComponents, 200, 1e-16)
-        val Rinv = DMRGInvert(
-                R,
-                3,
-                TTVector(Rinv0.tt),
-                truncationRelativeThreshold = 1e-10 / (2 * FT.getHighestExitRate())
-        )
-
-        Rinv.tt.roundAbsolute(1e-16)
-        println("Inversion relative residual: ${((Rinv * R) - tteye(R.modes)).frobenius() / R.numCols}")
-        val D = TTSquareMatrix.diag(R * TTVector.ones(R.modes))
-        val matToInv = M - Rinv * D
-        matToInv.tt.roundAbsolute(1e-16)
-
-        return MTFFMethod(matToInv, Rinv * TTVector.ones(Rinv.modes))
-    }
 
 //    fun computeMoment() {
 //        val momentArgs = momentArgs ?: throw RuntimeException("No moment calculation arguments given")

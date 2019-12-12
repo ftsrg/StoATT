@@ -1,5 +1,6 @@
 package faulttree
 
+import MDDExtensions.toTensorTrain
 import MDDExtensions.union
 import MDDExtensions.withoutVar
 import faulttree.BasicEvent.Companion.BasicEventVar
@@ -75,8 +76,8 @@ class FaultTree(val topNode: FaultTreeNode) {
 
         // Order static events
         fun traverse(node: FaultTreeNode) {
-            if(node is BasicEvent && !(orderedVars.contains(node.variable)))
-                orderedVars.add(node.variable)
+            if(node is AbstractBasicEvent && !(orderedVars.contains(node.getVariable())))
+                orderedVars.add(node.getVariable())
             else if(node is StaticGate)
                 node.inputs.sortedBy { -it.getOrderingWeight() }.forEach(::traverse)
         }
@@ -218,6 +219,9 @@ class FaultTree(val topNode: FaultTreeNode) {
     public fun getOperationalIndicatorVector(): TTVector {
         val cores = arrayListOf<CoreTensor>()
         val mdd = nonFailureAsMdd()
+
+        return TTVector(mdd.toTensorTrain())
+
         var currHandles = arrayListOf(mdd)
         while (!(currHandles.isEmpty() || currHandles[0].isTerminal)) {
             val nextHandlesSet = hashSetOf<MddHandle>()
