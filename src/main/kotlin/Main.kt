@@ -12,42 +12,6 @@ import kotlin.math.abs
 
 fun main(args: Array<String>) {
 
-    val M = TTSquareMatrix.rand(Array(4) {2}, arrayOf(1,3,3,3,1), random =  Random(10))
-    val MInv = DMRGInvert(M, 50, verbose = false, truncationRelativeThreshold = 1e-16)
-    println(((MInv * M) - TTSquareMatrix.eye(M.modes)).frobenius())
-
-//    val n = 3
-//    val random = Random(1)
-//    val mats = Array(n) {SimpleMatrix.random_DDRM(2, 2, 0.0, 10.0, random)}
-//    val T = kronSumAsTT(mats.toList())
-//    val TInv = approxInvertKronsum(mats.toList(), 100, 0.0)
-//    T.printElements()
-//    (TInv*T).printElements(numDecimals = 5)
-//    println(TInv.ttRanks())
-//    val eye = TTSquareMatrix.eye(T.modes)
-//    println((TInv * T - eye).frobenius()/eye.frobenius())
-//    return
-
-    val shortTest =
-            """
-                toplevel "MyTree";
-                "MyTree" or "EAndD" "AAndFAndBOrC" "MultiAnd";
-
-                "EventA" lambda=.2;
-                "EventB" lambda=.1;
-                "EventC" lambda=0.1;
-                "EventD" lambda=.3;
-                "EventE" lambda=.423;
-                "EventF" lambda=0.5;
-                "EventG" lambda=0.56;
-
-                "EAndD" and "EventE" "EventD";
-                /* (((a and f) and (b or c)) or (b and c and e and g)) */
-                "AAndFAndBOrC" and "EventA" "EventF" "BOrC";
-                "BOrC" or "EventB" "EventC";
-                "MultiAnd" and "EventB" "EventC" "EventE" "EventG";
-            """.trimIndent()
-
     val longTest ="""
     toplevel "SystemC0_failed";
     "SystemC0_failed" and "McuC0_controlFailed" "McuC1_controlFailed" "McuC4_controlFailed" "McuC2_controlFailed" "McuC3_controlFailed";
@@ -133,6 +97,44 @@ fun main(args: Array<String>) {
     "ConnectionC3_connectionFailed" lambda=2.0 dorm=0.0;
     """.trimIndent()
 
+
+//    val M = TTSquareMatrix.rand(Array(4) {2}, arrayOf(1,3,3,3,1), random =  Random(10))
+//    val MInv = DMRGInvert(M, 50, verbose = false, truncationRelativeThreshold = 1e-16)
+//    println(((MInv * M) - TTSquareMatrix.eye(M.modes)).frobenius())
+
+//    val n = 3
+//    val random = Random(1)
+//    val mats = Array(n) {SimpleMatrix.random_DDRM(2, 2, 0.0, 10.0, random)}
+//    val T = kronSumAsTT(mats.toList())
+//    val TInv = approxInvertKronsum(mats.toList(), 100, 0.0)
+//    T.printElements()
+//    (TInv*T).printElements(numDecimals = 5)
+//    println(TInv.ttRanks())
+//    val eye = TTSquareMatrix.eye(T.modes)
+//    println((TInv * T - eye).frobenius()/eye.frobenius())
+//    return
+
+    val shortTest =
+            """
+                toplevel "MyTree";
+                "MyTree" or "EAndD" "AAndFAndBOrC" "MultiAnd";
+
+                "EventA" lambda=.2;
+                "EventB" lambda=.1;
+                "EventC" lambda=0.1;
+                "EventD" lambda=.3;
+                "EventE" lambda=.423;
+                "EventF" lambda=0.5;
+                "EventG" lambda=0.56;
+
+                "EAndD" and "EventE" "EventD";
+                /* (((a and f) and (b or c)) or (b and c and e and g)) */
+                "AAndFAndBOrC" and "EventA" "EventF" "BOrC";
+                "BOrC" or "EventB" "EventC";
+                "MultiAnd" and "EventB" "EventC" "EventE" "EventG";
+            """.trimIndent()
+
+
     val nagyonshortTest= """
         toplevel "MyTree";
                 "MyTree" or "EventA" "Masik";
@@ -217,9 +219,19 @@ fun main(args: Array<String>) {
                 "EventPhi" lambda=0.17;
             """.trimIndent()
 
-    val testTreeDesc = shortTest
+    val testTreeDesc = longTest
 
     val Ft = galileoParser.parse(testTreeDesc.byteInputStream())
+    println(Ft.getNthMoment(1, 1e-7, { M, b, threshold ->
+        AMEnSolve(
+                M, b,
+                TTVector.ones(b.modes),
+                threshold,
+                20,
+                4
+        )
+    }))
+    return
 
 //    val T = TTSquareMatrix.rand(Array(4) {2}, arrayOf(1,3,3,3,1))
 //    val inv = DMRGInvert(T, 100)

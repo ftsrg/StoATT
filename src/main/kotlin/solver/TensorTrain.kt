@@ -30,6 +30,7 @@ class CoreTensor(val modeLength: Int, var rows: Int, var cols: Int) {
         }
     }
 
+
     operator fun times(d: Double): CoreTensor {
         val res = CoreTensor(modeLength, rows, cols) //empty at first
         for (i in 0 until res.data.size) {
@@ -407,6 +408,18 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
             }
         }
         return res
+    }
+
+    fun mirror(): TensorTrain {
+        val newCores = arrayListOf<CoreTensor>()
+        for (coreTensor in cores.reversed()) {
+            val transpCore = CoreTensor(coreTensor.modeLength, coreTensor.cols, coreTensor.rows)
+            repeat(transpCore.data.size) {
+                transpCore[it] = coreTensor[it].T()
+            }
+            newCores.add(transpCore)
+        }
+        return TensorTrain(newCores)
     }
 }
 

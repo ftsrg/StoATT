@@ -112,11 +112,12 @@ class Calc : CliktCommand(help =
     object MomentArgs : OptionGroup() {
         val moment by option("-m", "--moment").int().restrictTo(min = 1).required()
         val solver by option("-s", "--solver")
-                .choice("DMRG", "Neumann", "GMRES", "Jacobi").default("DMRG")
+                .choice("DMRG", "Neumann", "GMRES", "Jacobi", "AMEn").default("DMRG")
         val preconditioner by option("-prec", "--preconditioner").choice("NS", "DMRG", "Jacobi", "none")
         val threshold by option("-th", "--threshold").double().default(1e-7)
         val method by option("--method").choice("1", "2").int().default(2)
         val sweeps by option("--sweeps").int()
+        val enrichmentRank by option("--enrichment").int().restrictTo(min=0)
         val expinvterms by option("--expinvterms").int().restrictTo(min = 0)
         val neumannterms by option("--neumannterms").int().restrictTo(min = 0)
     }
@@ -180,6 +181,15 @@ class Calc : CliktCommand(help =
                                 threshold, //relativeResNormThreshold * pi0.norm(),
                                 momentArgs.threshold / rho,
                                 log = true
+                        )
+                    }
+                    "AMEn" -> { M, b, threshold ->
+                        AMEnSolve(
+                                M, b,
+                                TTVector.ones(b.modes),
+                                threshold,
+                                momentArgs.sweeps ?: 0,
+                                momentArgs.enrichmentRank ?: 1
                         )
                     }
                     else -> throw RuntimeException("Unknown solver")

@@ -223,6 +223,16 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
         { "The matrices must have the same mode sizes!"}
         return TTSquareMatrix(tt.hadamard(B.tt), modes)
     }
+
+    /**
+     * Returns the TTSquareMatrix whose TensorTrain is computed by changing the nth core to a core of the identity matrix.
+     * The other cores reference the same TensorCore objects, they are not copied.
+     */
+    fun middleInterface(omittedCore: Int): TTSquareMatrix {
+        val newCores = ArrayList(tt.cores)
+        newCores[omittedCore] = eye(arrayOf(newCores[omittedCore].modeLength)).tt.cores[0]
+        return TTSquareMatrix(TensorTrain(newCores), modes)
+    }
 }
 
 fun tteye(modes: Array<Int>) = TTSquareMatrix.eye(modes)

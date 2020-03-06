@@ -3,7 +3,13 @@ package solver
 import org.ejml.simple.SimpleMatrix
 import java.util.*
 
-class TTVector(var tt: TensorTrain) {
+class TTVector(_tt: TensorTrain) {
+
+    var tt: TensorTrain = _tt
+    set(value) {
+        field = value
+        modes = tt.cores.map { it.modeLength }.toTypedArray()
+    }
 
     companion object {
         fun zeros(modes: Array<Int>): TTVector {
@@ -43,7 +49,7 @@ class TTVector(var tt: TensorTrain) {
     }
 
     val numElements = tt.cores.map { it.modeLength.toLong() }.reduce(Long::times)
-    val modes = tt.cores.map { it.modeLength }.toTypedArray()
+    var modes = tt.cores.map { it.modeLength }.toTypedArray()
 
     fun ttRanks() = tt.ranks()
 
