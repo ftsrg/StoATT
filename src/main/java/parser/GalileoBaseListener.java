@@ -1,4 +1,4 @@
-// Generated from C:/Users/Daniel/Documents/egyetem/onlab_tdk/Impl/Linalg/src/main/antlr\Galileo.g4 by ANTLR 4.7.2
+// Generated from C:/Users/Daniel/Documents/egyetem/onlab_tdk/Impl/Linalg/src/cli.main/antlr\Galileo.g4 by ANTLR 4.7.2
 package parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
