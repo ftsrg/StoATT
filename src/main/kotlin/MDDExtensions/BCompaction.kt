@@ -25,14 +25,15 @@ object BCompaction {
     }
 
     private fun markEdges(f: MddHandle, c: MddHandle, thenMarkings: HashSet<MddHandle>, elseMarkings: HashSet<MddHandle>) {
-        if (c.isTerminalZero) return
+//        if (c.isTerminalZero) return
+        if (c.toLowestSignificantVariable().isTerminalZero) return
         if (f.isTerminal) return
         val x = f.variableHandle
-        if(!c[1].isTerminalZero) {
+        if(!c[1].toLowestSignificantVariable().isTerminalZero) {
             if(!f.semanticEquals(f[1])) thenMarkings.add(f)
             markEdges(f[1], c[1], thenMarkings, elseMarkings)
         }
-        if (!c[0].isTerminalZero) {
+        if (!c[0].toLowestSignificantVariable().isTerminalZero) {
             if(!f.semanticEquals(f[0])) elseMarkings.add(f)
             markEdges(f[0], c[0], thenMarkings, elseMarkings)
         }
