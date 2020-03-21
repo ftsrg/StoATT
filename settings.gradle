@@ -1,4 +1,4 @@
-rootProject.name = 'Linalg'
+rootProject.name = 'TTReliabilityTool'
 
 includeBuild '/delta/hu.bme.mit.delta.collections'
 includeBuild '/delta/hu.bme.mit.delta'
