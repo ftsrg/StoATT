@@ -103,7 +103,7 @@ fun TTReGMRES(
 //        val realResNorm = (linearMap * x - b).norm()
         if (verbose) println("TTReGMRES iter $i: resnorm=${solution.resNorm} maxrank=${x.ttRanks().max()}")
 //        if(solution.resNorm < residualThreshold && (linearMap * x - b).norm() < residualThreshold) break
-        if (normalize) x /= (x * ones)
+        if (normalize) x.divAssign((x * ones))
     }
     x.tt.roundAbsolute(1e-16)
     return TTSolution(x, (linearMap(x) - b).norm())
@@ -369,9 +369,11 @@ private fun applyALSStep(
     }
     //endregion
 
+//    val solveDirectly =true // currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 100
     val solveDirectly = currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 100
     val ACore = A.tt.cores[k]
     lateinit var w: SimpleMatrix
+    //TODO: normalization in both methods
     if (solveDirectly) {
         val dim = currCore.modeLength * currCore.rows * currCore.cols
         val FullB = SimpleMatrix(dim, dim)
@@ -392,10 +394,36 @@ private fun applyALSStep(
         }
 
         //solve Bw=F
-        w = try {
-            FullB.solve(F)
-        } catch (e: SingularMatrixException) {
-            FullB.pseudoInverse() * F
+        w = if (normalize) {
+            var normalizerLeft = ones(1)
+            // TODO: cache
+//            repeat(k - 1) {
+            repeat(k) {
+                val coreTensor = x.tt.cores[it]
+                var sum = coreTensor[0].createLike()
+                for (M in coreTensor.data) {
+                    sum += M
+                }
+                normalizerLeft *= sum
+            }
+            var normalizerRight = ones(1)
+            for (i in x.tt.cores.size - 1 downTo k + 1) {
+                val coreTensor = x.tt.cores[i]
+                var sum = coreTensor[0].createLike()
+                for (M in coreTensor.data) {
+                    sum += M
+                }
+                normalizerRight = sum * normalizerRight
+            }
+            // TODO: check middle kron
+            val normalizer = normalizerLeft.kron(ones(F.numElements / normalizerLeft.numElements / normalizerRight.numElements).T()).kron(normalizerRight.T())
+            FullB.concatRows(normalizer).concatColumns(normalizer.T().concatRows(SimpleMatrix(1,1))).solve(F.concatRows(mat[r[1.0]]))
+        } else {
+            try {
+                FullB.solve(F)
+            } catch (e: SingularMatrixException) {
+                FullB.pseudoInverse() * F
+            }
         }
     } else {
         val w0 = F.createLike()
@@ -408,7 +436,33 @@ private fun applyALSStep(
             }
         }
 
-        w = ALSLocalIterSolve(psi, phi, A, w0, F, k, residualThreshold * 0.001, maxLocalIters = maxLocalIters)
+        if (normalize) {
+            var normalizerLeft = ones(1)
+            // TODO: cache
+//            repeat(k-1) {
+            repeat(k) {
+                val coreTensor = x.tt.cores[it]
+                var sum = coreTensor[0].createLike()
+                for (M in coreTensor.data) {
+                    sum += M
+                }
+                normalizerLeft *= sum
+            }
+            var normalizerRight = ones(1)
+            for (i in x.tt.cores.size - 1 downTo k + 1) {
+                val coreTensor = x.tt.cores[i]
+                var sum = coreTensor[0].createLike()
+                for (M in coreTensor.data) {
+                    sum += M
+                }
+                normalizerRight = sum * normalizerRight
+            }
+            // TODO: check middle kron
+            val normalizer = normalizerLeft.kron(ones(F.numElements / normalizerLeft.numElements / normalizerRight.numElements).T()).kron(normalizerRight.T())
+            w = ALSLocalIterSolve(psi, phi, A, w0, F, k, residualThreshold * 0.001, maxLocalIters = maxLocalIters, normalizerVector = normalizer)
+        } else {
+            w = ALSLocalIterSolve(psi, phi, A, w0, F, k, residualThreshold * 0.001, maxLocalIters = maxLocalIters)
+        }
     }
     for (i in 0 until currCore.modeLength) {
         for (beta_minus in 0 until currCore.rows) {
@@ -507,15 +561,22 @@ private fun ALSLocalIterSolve(
         }
 
         if (normalizerVector != null) {
-            res += lambda * normalizerVector
-            res = res.concatRows(mat[r[normalizerVector.scalarProduct(y)]])
+            res += lambda * normalizerVector.T()
+            res = res.concatRows(mat[r[(normalizerVector*y)[0]]])
         }
 
         return preconditioner?.mult(res) ?: res
     }
 
 //    return BiCGStabL(2, ::computeMatVec, preconditioner?.mult(F) ?: F, maxLocalIters, w0, threshold).solution
-    val result = biCGStab(::computeMatVec, preconditioner?.mult(F) ?: F, maxLocalIters, w0, threshold)
+    val result =
+            if(normalizerVector != null) {
+                val Fextended = F.concatRows(mat[r[1.0]])
+                val w0extended = w0.concatRows(mat[r[w0.scalarProduct(ones(w0.numRows(),1))]])
+                biCGStab(::computeMatVec, preconditioner?.mult(Fextended) ?: Fextended, maxLocalIters, w0extended, threshold)
+            } else {
+                biCGStab(::computeMatVec, preconditioner?.mult(F) ?: F, maxLocalIters, w0, threshold)
+            }
     if (normalizerVector != null) {
         return result[0..result.numElements - 1, 0..1]
     }
@@ -747,10 +808,11 @@ fun AMEnSolve(
         residualThreshold: Double,
         maxSweeps: Int,
         enrichmentRank: Int,
+        normalize: Boolean = false,
         verbose: Boolean = true
 //        enrichmentMethod: AmenEnrichmentMethod = AmenEnrichmentMethod.SVD
 ): TTSolution {
-    val relativeThreashold = residualThreshold/y.norm()
+    val relativeThreashold = residualThreshold / y.norm()
 
     val x = x0.copy()
     for (i in x.tt.cores.size - 2 downTo 1) {
@@ -781,7 +843,7 @@ fun AMEnSolve(
 
             for (k in 0 until x.modes.size - 1) {
 
-                applyALSStep(A, x, y, k, psiCache, phiCache, residualThreshold)
+                applyALSStep(A, x, y, k, psiCache, phiCache, residualThreshold, normalize = normalize)
 
                 val yCore = y.tt.cores[k]
                 val ry_k = yCore.cols
@@ -790,8 +852,8 @@ fun AMEnSolve(
                 val ACore = A.tt.cores[k]
 
                 // Determine the residual core
-                val rx_kmin1 = if(k==0) 1 else x.tt.cores[k - 1].cols
-                val rA_kmin1 = if(k==0) 1 else A.tt.cores[k - 1].cols
+                val rx_kmin1 = if (k == 0) 1 else x.tt.cores[k - 1].cols
+                val rA_kmin1 = if (k == 0) 1 else A.tt.cores[k - 1].cols
                 val residualCore = CoreTensor(x.modes[k], U_k.rows,
                         yCore.cols + ACore.cols * rx_k) //TODO: check
 
@@ -817,7 +879,7 @@ fun AMEnSolve(
                     unfolding[i * residualCore.rows, 0] = residualCore[i]
                 }
                 val svd = unfolding.svd(true)
-                val currEnrichment = if(enrichmentRank < svd.u.numCols()) enrichmentRank else svd.u.numCols()
+                val currEnrichment = if (enrichmentRank < svd.u.numCols()) enrichmentRank else svd.u.numCols()
                 repeat(residualCore.modeLength) { i ->
                     U_k[i] = mat[U_k[i], svd.u[i * residualCore.rows..(i + 1) * residualCore.rows, 0..currEnrichment]]
                 }
@@ -853,7 +915,8 @@ fun AMEnSolve(
         resNorm = (y - A * x).norm()
         if (verbose) println("AMEn sweep $sweep: resnorm=$resNorm threshold=$residualThreshold maxrank=${x.ttRanks().max()}")
         if (resNorm <= residualThreshold) break //TODO: stopping criterion based on the local residual
-        x.tt.roundRelative(relativeThreashold/10) //TODO: use maximal eigenvalue estimate of the matrix
+//        x.tt.roundRelative(relativeThreashold / 1000000000000) //TODO: use maximal eigenvalue estimate of the matrix
+        x.tt.roundAbsolute(residualThreshold/10)
     }
     return TTSolution(x, resNorm)
 }

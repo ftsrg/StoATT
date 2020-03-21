@@ -29,5 +29,6 @@ fun MddHandle.toTensorTrain(): TensorTrain {
         cores.add(newCore)
     }
 
-    return TensorTrain(cores)
+    val tensorTrain = TensorTrain(cores)
+    return tensorTrain
 }

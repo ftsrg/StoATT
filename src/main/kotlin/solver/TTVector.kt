@@ -89,6 +89,8 @@ class TTVector(_tt: TensorTrain) {
     }
 
     operator fun div(d: Double): TTVector = this * (1.0/d)
+    operator fun divAssign(d: Double) = this.tt.timesAssign(1/d)
+
 
     fun norm() = tt.frobenius()
     fun copy(): TTVector = TTVector(tt.copy()
