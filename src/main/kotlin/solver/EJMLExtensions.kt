@@ -2,10 +2,8 @@ package solver
 
 import org.ejml.dense.row.factory.DecompositionFactory_DDRM
 import org.ejml.simple.SimpleMatrix
-import kotlin.math.cosh
-import kotlin.math.exp
-import kotlin.math.sinh
-import kotlin.math.sqrt
+import java.util.*
+import kotlin.math.*
 
 operator fun SimpleMatrix.times(other: SimpleMatrix) = this.mult(other)
 operator fun SimpleMatrix.times(scalar: Double) = this.scale(scalar)
@@ -45,7 +43,7 @@ fun SimpleMatrix.vecNorm2(): Double {
     return sqrt(when {
         this.numRows() == 1 -> (this * this.T())[0, 0]
         this.numCols() == 1 -> (this.T() * this)[0, 0]
-        else -> throw Exception("Matrix should contain only one column or one solver.row")
+        else -> throw Exception("The matrix should contain only one column or one row")
     })
 }
 
@@ -86,10 +84,10 @@ fun exp2by2(A: SimpleMatrix): SimpleMatrix {
     val d = A[1, 1]
     val delta = sqrt((a - d) * (a - d) + 4 * b * c)
 
-    if(delta == 0.0) {
-        return exp((a+d)/2)* mat[
-            r[1+(a-d)/2, b],
-            r[c, 1-(a-d)/2]
+    if (delta == 0.0) {
+        return exp((a + d) / 2) * mat[
+                r[1 + (a - d) / 2, b],
+                r[c, 1 - (a - d) / 2]
         ]
     }
 
@@ -115,4 +113,141 @@ fun exp2by2(A: SimpleMatrix): SimpleMatrix {
 
 fun SimpleMatrix.kronSum(other: SimpleMatrix): SimpleMatrix {
     return this.kron(eye(other.numRows())) + eye(this.numRows()).kron(other)
+}
+
+data class SVD(val U: SimpleMatrix, val S: SimpleMatrix, val V: SimpleMatrix)
+
+fun SimpleMatrix.truncatedSVDByIterativeEigen(threshold: Double): SVD {
+    val thresh2 = threshold * threshold
+
+    var U = SimpleMatrix(0, 0)
+    var V = SimpleMatrix(0, 0)
+    val s = arrayListOf<Double>()
+
+    var Right = this.T() * this
+    var sumOfRemaining = Right.trace()
+
+    while (sumOfRemaining > thresh2) {
+//        val rightEigen = powerIter(Right, min(thresh2, 1e-15))
+        val rightEigen = restartedLanczos(Right, min(thresh2, 1e-15), innerIters = 10)
+        V = V.concatColumns(rightEigen.vector)
+        val singularValue = sqrt(rightEigen.value)
+        s.add(singularValue)
+        U = U.concatColumns(this * rightEigen.vector / singularValue)
+        // deflation
+        Right -= rightEigen.value * rightEigen.vector * rightEigen.vector.T()
+
+        sumOfRemaining -= rightEigen.value
+    }
+
+    return SVD(U, SimpleMatrix.diag(*s.toDoubleArray()), V)
+}
+
+fun SimpleMatrix.correctedTruncatedSVDByIterativeEigen(threshold: Double, correctionThreshold: Double = 1e-12): SVD {
+    val thresh2 = threshold * threshold
+
+    var U = SimpleMatrix(0, 0)
+    var V = SimpleMatrix(0, 0)
+    val s = arrayListOf<Double>()
+
+    var Right = this.T() * this
+    var sumOfRemaining = Right.trace()
+
+    mainLoop@ while (sumOfRemaining > thresh2) {
+        val rightEigen = powerIter(Right)
+//        val rightEigen = restartedLanczos(Right, min(thresh2, 1e-15), innerIters = 10)
+        for(i in 0..V.numCols()) {
+            val v = V.col(i)
+            val prod = v.scalarProduct(rightEigen.vector)
+            if(abs(1-prod) < correctionThreshold) {
+                s[i] = s[i]+rightEigen.value
+                sumOfRemaining -= rightEigen.value
+                Right -= rightEigen.value * v * v.T()
+                continue@mainLoop
+            }
+        }
+        V = V.concatColumns(rightEigen.vector)
+        val singularValue = sqrt(rightEigen.value)
+        s.add(singularValue)
+        U = U.concatColumns(this * rightEigen.vector / singularValue)
+        // deflation
+        Right -= rightEigen.value * rightEigen.vector * rightEigen.vector.T()
+
+        sumOfRemaining -= rightEigen.value
+    }
+
+    return SVD(U, SimpleMatrix.diag(*s.toDoubleArray()), V)
+}
+
+data class Eigen(val vector: SimpleMatrix, val value: Double)
+
+fun powerIter(A: SimpleMatrix, threshold: Double = 1e-12): Eigen {
+    var current = SimpleMatrix.random_DDRM(A.numCols(), 1, 0.0, 1.0, Random())
+    current /= current.vecNorm2()
+    var prev = current
+    var scalarProduct: Double
+    do {
+        prev = current / current.vecNorm2()
+        current = A * prev
+        scalarProduct = current.scalarProduct(prev)
+//    } while (abs(scalarProduct / (current.vecNorm2())-1) > threshold)
+    } while ((A * prev - scalarProduct * prev).vecNorm2() > threshold)
+    return Eigen(current / current.vecNorm2(), scalarProduct)
+}
+
+fun lanczos(A: SimpleMatrix, threshold: Double = 1e-15, m: Int = A.numCols(), v0: SimpleMatrix? = null): Eigen {
+
+    var V = v0 ?: SimpleMatrix.random_DDRM(A.numCols(), 1, 0.0, 1.0, Random())
+    V /= V.vecNorm2()
+    var v = V
+    var vprev = v.createLike()
+    var beta = 0.0
+    var H = SimpleMatrix(1, 1)
+
+    var lambda = 0.0
+    var eigVect = SimpleMatrix(0,0)
+
+    for (i in 0 until m) {
+        var w = A * v - beta * vprev
+        val alpha = w.scalarProduct(v)
+        w -= alpha * v
+        beta = w.vecNorm2()
+
+        H = H.concatColumns(SimpleMatrix(H.numRows(), 1))
+        val newRow = SimpleMatrix(1, H.numCols())
+        H = H.concatRows(newRow)
+        H[i, i] = alpha
+        H[i, i + 1] = beta
+        H[i + 1, i] = beta
+        vprev = v
+        v = w / beta
+
+        val ritz = H[0..H.numRows()-1, 0..H.numCols()-1].eig()
+        var maxIdx = 0
+        lambda = ritz.eigenvalues[0].real
+        for (j in 1 until ritz.eigenvalues.size) {
+            val curr = ritz.eigenvalues[j].real
+            if (curr.absoluteValue > lambda.absoluteValue) {
+                maxIdx = j
+                lambda = curr
+            }
+        }
+        eigVect = V * ritz.getEigenVector(maxIdx)
+        val residual = A * eigVect - lambda * eigVect
+        if(residual.vecNorm2() < threshold) break
+
+        V = V.concatColumns(v)
+    }
+
+    return Eigen(eigVect, lambda)
+}
+
+fun restartedLanczos(A: SimpleMatrix, threshold: Double = 1e-15, innerIters: Int = 5): Eigen {
+    var v0 = SimpleMatrix.random_DDRM(A.numCols(), 1, 0.0, 1.0, Random())
+    v0 /= v0.vecNorm2()
+    while(true) {
+        val eig = lanczos(A, threshold, innerIters, v0)
+        val residual = eig.value*eig.vector-A*eig.vector
+        if(residual.vecNorm2() > threshold) return eig
+    }
 }

@@ -270,16 +270,16 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
      * Performs SVD-based Tensor Train rounding
      * @param tolerance Relative tolerance of the rounding procedure
      */
-    fun roundRelative(tolerance: Double, budgetMode: BudgetMode = BudgetMode.NONE) {
+    fun roundRelative(tolerance: Double, useIterative: Boolean = false, budgetMode: BudgetMode = BudgetMode.NONE) {
         val delta = if(tolerance == 0.0) 0.0 else (tolerance / sqrt((cores.size - 1).toDouble()) * frobenius())
-        roundAbsolute(delta, budgetMode)
+        roundAbsolute(delta, useIterative, budgetMode)
     }
 
     /**
      * Performs SVD-based Tensor Train rounding
      * @param tolerance Absolute tolerance of the rounding procedure
      */
-    fun roundAbsolute(tolerance: Double, budgetMode: BudgetMode = BudgetMode.NONE) {
+    fun roundAbsolute(tolerance: Double, useIterative: Boolean = false, budgetMode: BudgetMode = BudgetMode.NONE) {
         //init
         var delta = tolerance
 
@@ -316,33 +316,37 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
             for ((i, mat) in Gk.data.withIndex()) {
                 Gkmat[i*Gk.rows, 0] = mat
             }
-            val svd = Gkmat.svd(true)
-            val origSize = svd.singularValues.size
-//            val maxIdx = max(0, svd.singularValues.indexOfFirst(origSize) { it <= delta } - 1)
-            var maxIdx = origSize - 1
-            var sigma2Sum = 0.0
-            val delta2 = delta * delta
-            for (i in origSize-1 downTo 1) {
-                val sigma = svd.singularValues[i]
-                val sigma2 = sigma * sigma
-                if(sigma2Sum + sigma2 < delta2) {
-                    maxIdx--
-                    sigma2Sum += sigma2
-                } else break
+            var maxIdx = 0
+            val svd = if (useIterative) {
+                val trunc = Gkmat.truncatedSVDByIterativeEigen(delta)
+                maxIdx = trunc.S.numCols() - 1
+                trunc
+            } else {
+                val fullSVD = Gkmat.svd(true)
+                val origSize = fullSVD.singularValues.size
+                maxIdx = origSize - 1
+                var sigma2Sum = 0.0
+                val delta2 = delta * delta
+                for (i in origSize-1 downTo 1) {
+                    val sigma = fullSVD.singularValues[i]
+                    val sigma2 = sigma * sigma
+                    if(sigma2Sum + sigma2 < delta2) {
+                        maxIdx--
+                        sigma2Sum += sigma2
+                    } else break
+                }
+                maxIdx = max(0, maxIdx)
+                SVD(fullSVD.u, fullSVD.w, fullSVD.v)
             }
-            maxIdx = max(0, maxIdx)
-//            val eps2_k = sigma2Sum
-            if(budgetMode == BudgetMode.UNIFORM) {
-                TODO()
-            } else if(budgetMode == BudgetMode.UNIFORM) TODO("Uniform budget sharing")
-            val GkmatTrunc = svd.u[0..END, 0..maxIdx+1]
+
+            val GkmatTrunc = svd.U[0..END, 0..maxIdx+1]
             repeat(Gk.modeLength) {
                 Gk.data[it] = GkmatTrunc[it*Gk.rows..(it+1)*Gk.rows, 0..GkmatTrunc.numCols()]
             }
             Gk.rows = Gk.data[0].numRows()
             Gk.cols = Gk.data[0].numCols()
 
-            val modifier = svd.w[0..maxIdx+1, 0..maxIdx+1]*svd.v[0..END, 0..maxIdx+1].T()
+            val modifier = svd.S[0..maxIdx+1, 0..maxIdx+1]*svd.V[0..END, 0..maxIdx+1].T()
             val nextMatData = cores[k + 1].data
             for ((i, mat) in nextMatData.withIndex()) {
                 nextMatData[i] = modifier*mat

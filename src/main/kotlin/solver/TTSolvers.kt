@@ -417,7 +417,13 @@ private fun applyALSStep(
             }
             // TODO: check middle kron
             val normalizer = normalizerLeft.kron(ones(F.numElements / normalizerLeft.numElements / normalizerRight.numElements).T()).kron(normalizerRight.T())
-            FullB.concatRows(normalizer).concatColumns(normalizer.T().concatRows(SimpleMatrix(1,1))).solve(F.concatRows(mat[r[1.0]]))
+            val FullBExtended = FullB.concatRows(normalizer).concatColumns(normalizer.T().concatRows(SimpleMatrix(1, 1)))
+            val FExtended = F.concatRows(mat[r[1.0]])
+            try {
+                FullBExtended.solve(FExtended)
+            } catch (e: SingularMatrixException) {
+                FullBExtended.pseudoInverse()*FExtended
+            }
         } else {
             try {
                 FullB.solve(F)
