@@ -1,15 +1,17 @@
 package gspn
 
+import MDDExtensions.GSCompaction
+import MDDExtensions.toTensorTrain
+import hu.bme.mit.delta.java.mdd.JavaMddFactory
 import hu.bme.mit.delta.java.mdd.impl.DefaultJavaMddFactory
-import hu.bme.mit.delta.mdd.LatticeDefinition
-import hu.bme.mit.delta.mdd.MddVariable
-import hu.bme.mit.delta.mdd.MddVariableDescriptor
+import hu.bme.mit.delta.mdd.*
 import hu.bme.mit.inf.turnout.petrinet.Out
 import hu.bme.mit.inf.turnout.petrinet.PetriNet
 import hu.bme.mit.inf.turnout.petrinet.Reset
 import hu.bme.mit.inf.turnout.petrinet.`NoEffect$`
 import hu.bme.mit.inf.turnout.petrinet.saturation.StateSpaceExplorer
 import hu.bme.mit.inf.turnout.symbolic.diagram.Mdd
+import hu.bme.mit.inf.turnout.symbolic.diagram.SetOperations
 import scala.*
 import scala.collection.JavaConverters
 import solver.*
@@ -39,21 +41,54 @@ fun Mdd.Node.toTT(capacities: List<Int>): TTVector {
     return TTVector(TensorTrain(cores))
 }
 
+fun Mdd.Node.toDelta(order: MddVariableOrder) = this.toDelta(order, 0)
+fun Mdd.Node.toDelta(order: MddVariableOrder, levelFromTop: Int): MddHandle {
+    val signature = order.createSignatureFromVariables(order.toList().drop(levelFromTop))
+    return when(this) {
+        is Mdd.InnerNode -> {
+            val builder = JavaMddFactory.getDefault().createTemplateBuilder()
+            for ((idx, child) in this.children().withIndex()) {
+                builder.set(idx, child.toDelta(order, levelFromTop+1))
+            }
+            signature.topVariableHandle.checkIn(builder.buildAndReset())
+        }
+        is Mdd.ZeroNode -> {
+            order.mddGraph.getTerminalZeroHandle(signature.topVariableHandle)
+        }
+        is Mdd.OneNode -> {
+            (order.mddGraph as MddGraph<Boolean>).getHandleFor(true)
+        }
+        else -> throw RuntimeException("Unknown mdd node type: ${this.javaClass.name}")
+    }
+}
 
 class GSPN(val places: ArrayList<Place>, val transitions: ArrayList<Transition>) {
     companion object {
         val mddFactory = DefaultJavaMddFactory()
-
     }
 
     fun getTangibleMaskVector() =
         stateSpace.calculateTangible().toTT(places.map { it.capacity })
 
+    fun hasDeadlock(): Boolean {
+        val order = TODO()
+        var currSet = stateSpace.reachableStatesRoot().toDelta(order)
+//        currSet = SetOperations.SetOperationsLevel.`subtract$`.`MODULE$`.apply(currSet, stateSpace.calculateTangible())
+        currSet -= stateSpace.calculateTangible().toDelta(order)
+        for(i in 1..(transitions.map { if(it is ImmediateTransition) it.priority else 0 }.max()?:0)) {
+//            currSet = SetOperations.SetOperationsLevel.`subtract$`.`MODULE$`.apply(currSet, stateSpace.calculatePriority(i))
+            currSet -= stateSpace.calculatePriority(i).toDelta(order)
+        }
+        return !currSet.isTerminalZero
+    }
 
-    fun getRateMatrix(tolerancePerTerm: Double = 0.0, immediateRate: Double = 1.0): TTSquareMatrix {
+    fun getRateMatrix(
+            tolerancePerTerm: Double = 0.0,
+            immediateRate: Double = 1.0,
+            useCompaction: Boolean = false
+    ): TTSquareMatrix {
         computeCapacities()
         val variableOrder = mddFactory.createMddVariableOrder(LatticeDefinition.forSets())
-        // TODO: ordering?
         var last: MddVariable? = null
         for (place in places) {
             last =
@@ -61,8 +96,10 @@ class GSPN(val places: ArrayList<Place>, val transitions: ArrayList<Transition>)
                     else variableOrder.createBelow(last, MddVariableDescriptor.create(place.name, place.capacity + 1))
         }
         val capacities = places.map(Place::capacity)
-        val p0mdd = stateSpace.calculateTangible()
-        val p0mask: TTSquareMatrix = TTSquareMatrix.diag(p0mdd.toTT(capacities))
+        val reachableMdd = stateSpace.reachableStatesRoot().toDelta(variableOrder)
+        var p0mdd = stateSpace.calculateTangible().toDelta(variableOrder)
+        if(useCompaction) p0mdd = GSCompaction.apply(p0mdd, reachableMdd)
+        val p0mask: TTSquareMatrix = TTSquareMatrix.diag(TTVector(p0mdd.toTensorTrain()))
         val R0 = transitions.filterIsInstance<ExponentialTransition>().map { it.toTT(variableOrder, places) }.reduce(TTSquareMatrix::plus)
         val res: TTSquareMatrix = p0mask*R0
         res.tt.roundAbsolute(0.0)
@@ -70,8 +107,10 @@ class GSPN(val places: ArrayList<Place>, val transitions: ArrayList<Transition>)
             res.tt.roundRelative(tolerancePerTerm)
         val prios = transitions.filterIsInstance<ImmediateTransition>().groupBy(ImmediateTransition::priority)
         for ((prio, ts) in prios) {
+            var prioMdd = stateSpace.calculatePriority(prio).toDelta(variableOrder)
+            if(useCompaction) prioMdd = GSCompaction.apply(prioMdd, reachableMdd)
             val term =
-                    TTSquareMatrix.diag(stateSpace.calculatePriority(prio).toTT(capacities)) *
+                    TTSquareMatrix.diag(TTVector(prioMdd.toTensorTrain())) *
                     ts.map { it.toTT(variableOrder, places) }.reduce(TTSquareMatrix::plus)
             term.tt.roundAbsolute(0.0)
             if(tolerancePerTerm > 0.0)
@@ -82,14 +121,35 @@ class GSPN(val places: ArrayList<Place>, val transitions: ArrayList<Transition>)
         return res
     }
 
-    fun getSteadyStateDistribution(solver: (TTSquareMatrix) -> TTSolution): TTVector {
-        val rateMatrix = getRateMatrix()
+    fun getSteadyStateDistribution(verbose: Boolean = false, tolerancePerTerm: Double=0.0, solver: (TTSquareMatrix) -> TTSolution): TTVector {
+        if(verbose) println("Computing rate matrix")
+        val timeStart = System.currentTimeMillis()
+        val rateMatrix = getRateMatrix(tolerancePerTerm)
+        val timeRateEnd = System.currentTimeMillis()
+        if(verbose) println("Rate matrix computation time: ${timeRateEnd-timeStart}")
+        if(verbose) println("Rounding rate matrix, original largest rank: ${rateMatrix.ttRanks().max()}")
         rateMatrix.tt.roundAbsolute(1e-12)
+        val timeRoundingEnd = System.currentTimeMillis()
+        if(verbose) println("Rounding time: ${timeRoundingEnd-timeRateEnd} \nRounded largest rank: ${rateMatrix.ttRanks().max()}")
+        if(verbose) println("Computing steady state")
         val s = solver(rateMatrix - TTSquareMatrix.diag(rateMatrix * TTVector.ones(rateMatrix.modes)))
         val pi = s.solution.hadamard(getTangibleMaskVector())
         return pi/(pi*TTVector.ones(pi.modes))
     }
 
+    fun steadyStateExpectedTokenNumbers(verbose: Boolean = false, solver: (TTSquareMatrix) -> TTSolution): List<Double> {
+        val ss = getSteadyStateDistribution(verbose, 0.0, solver)
+        return places.indices.map {
+            val m = TTVector.ones(ss.modes)
+            m.tt.cores[it] = CoreTensor(m.tt.cores[it].modeLength, 1, 1).apply {
+                repeat(this.modeLength) { n ->
+                    data[n] = mat[r[n]]
+                }
+            }
+            ss * m
+        }
+    }
+    
     private val turnoutPN by lazy { toTurnoutPetriNet() }
     val stateSpace by lazy {
         StateSpaceExplorer.default().apply(turnoutPN)
@@ -101,7 +161,7 @@ class GSPN(val places: ArrayList<Place>, val transitions: ArrayList<Transition>)
                     (this.inhibitor().get() as Int) + (other.inhibitor().get() as Int)
                 else (this.inhibitor().get() as Int)) as Any)
                 is `None$` -> other.inhibitor()
-                else -> throw RuntimeException("This cannot happen but kotlin cannot parse scala")
+                else -> throw RuntimeException("This should really not happen")
             }
             val otherEffect = other.effect()
             val thisEffect = this.effect()

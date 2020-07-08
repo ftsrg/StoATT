@@ -41,7 +41,7 @@ object GSCompaction {
         if(c.isTerminalZero || f.isTerminal) return
         val x = f.variableHandle
 //        if(!f.semanticEquals(f[1])) { // TODO: two different level handles are never semanticEqual
-        if(f[1] != f[0]) { // TODO: two different level handles are never semanticEqual
+        if(f[1] != f[0]) {
             val s = checkSubstitutability(f, c)
             if(!thenMarkings.contains(f)) {
                 if(s == Substitutability.PON_TO_NEG) fcsList.add(FCS(f, c, s))
