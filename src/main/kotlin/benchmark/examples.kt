@@ -1,6 +1,7 @@
 package benchmark
 
 import gspn.PetriNet
+import gspn.Place
 import gspn.arc
 
 val largeTreeString = """
@@ -163,10 +164,10 @@ val gspnSmallerExample = PetriNet {
 }
 
 fun generateKanban(N: Int, getNextRate: ()->Double) = PetriNet {
-    val p= Array(4) {p("p$it", N)}
-    val pm= Array(4) {p("pm$it")}
-    val pback= Array(4) {p("pback$it")}
-    val pout = Array(4) {p("pout$it")}
+    val p= Array(4) { Place("p$it", initialMarking = N) }
+    val pm= Array(4) { Place("pm$it")}
+    val pback= Array(4) { Place("pback$it")}
+    val pout = Array(4) { Place("pout$it")}
 
     val tin = timed("tin1", getNextRate()) {
         input(arc(p[0]))
@@ -192,6 +193,11 @@ fun generateKanban(N: Int, getNextRate: ()->Double) = PetriNet {
         }
     }
 
+    val tout = timed("tout4", getNextRate()) {
+        input(arc(pout[3]))
+        out(arc(p[3]))
+    }
+
     val tsynch1_2 = immediate("tsynch1_2") {
         input(arc(pout[0]), arc(p[1]), arc(p[2]))
         out(arc(p[0]), arc(pm[1]), arc(pm[2]))
@@ -200,4 +206,93 @@ fun generateKanban(N: Int, getNextRate: ()->Double) = PetriNet {
         input(arc(pout[1]), arc(pout[2]), arc(p[3]))
         out(arc(p[2]), arc(p[3]), arc(pm[3]))
     }
+
+    _p.clear()
+    _p.addAll(
+            (0 until 4).flatMap<Int, Place> { listOf(p[it], pout[it], pm[it], pback[it]) }.reversed()
+    )
+}
+
+fun generateLongKanban(numLargeBlocks: Int, N: Int, getNextRate: () -> Double) = PetriNet {
+    val p0 = Place("start_p", initialMarking = N)
+    val pm0 = Place("start_pm")
+    val pback0 = Place("start_pback")
+    val pout0 = Place("start_pout")
+
+    val tin = timed("tin", getNextRate()) {
+        input(arc(p0))
+        out(arc(pm0))
+    }
+    timed("start_tok", getNextRate()) {
+        input(arc(pm0))
+        out(arc(pout0))
+    }
+    timed("start_tredo", getNextRate()) {
+        input(arc(pm0))
+        out(arc(pback0))
+    }
+    timed("start_tback", getNextRate()) {
+        input(arc(pback0))
+        out(arc(pm0))
+    }
+
+    class LargeBlock(id: Int) {
+        val p = Array(3) { Place("b${id}_p$it", initialMarking = N) }
+        val pm = Array(3) { Place("b${id}_pm$it") }
+        val pback = Array(3) { Place("b${id}_pback$it") }
+        val pout = Array(3) { Place("b${id}_pout$it") }
+
+        val tredo = Array(3) {
+            timed("b${id}_tredo$it", getNextRate()) {
+                input(arc(pm[it]))
+                out(arc(pback[it]))
+            }
+        }
+        val tok = Array(3) {
+            timed("b${id}_tok$it", getNextRate()) {
+                input(arc(pm[it]))
+                out(arc(pout[it]))
+            }
+        }
+        val tback = Array(3) {
+            timed("b${id}_tback$it", getNextRate()) {
+                input(arc(pback[it]))
+                out(arc(pm[it]))
+            }
+        }
+
+        val tsynch23_4 = immediate("tsyncs23_4") {
+            input(arc(pout[0]), arc(pout[1]), arc(p[2]))
+            out(arc(p[1]), arc(p[2]), arc(pm[2]))
+        }
+    }
+
+    val largeBlocks = Array(numLargeBlocks) { LargeBlock(it) }
+
+    val outs = listOf(pout0) + largeBlocks.map { it.pout[2] }
+    val plasts = listOf(p0) + largeBlocks.map { it.p[2] }
+    val pparallels = largeBlocks.map { Pair(it.p[0], it.p[1]) }
+    val pmparallels = largeBlocks.map { Pair(it.pm[0], it.pm[1]) }
+
+    repeat(outs.size-1) {
+        val tsynch1_2 = immediate("b${it}_tsynch1_2") {
+            input(arc(outs[it]), arc(pparallels[it].first), arc(pparallels[it].second))
+            out(arc(plasts[it]), arc(pmparallels[it].first), arc(pmparallels[it].second))
+        }
+    }
+
+    val tout = timed("tout4", getNextRate()) {
+        input(arc(largeBlocks.last().pout[2]))
+        out(arc(largeBlocks.last().p[2]))
+    }
+
+
+    // reorder places for better variable ordering
+    _p.clear()
+    _p.addAll(
+            (listOf(p0, pout0, pm0, pback0) +
+            largeBlocks.flatMap { block ->
+                (0 until 3).flatMap<Int, Place> { listOf(block.p[it], block.pout[it], block.pm[it], block.pback[it]) }
+            }).reversed()
+    )
 }
