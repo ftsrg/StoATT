@@ -13,7 +13,8 @@ fun main(args: Array<String>) =
                         Gen(),
                         Calc(),
                         GSPN().subcommands(
-                            Kanban()
+                            Kanban(),
+                            FromPNPRO()
                         )
                 ).main(args)
 
