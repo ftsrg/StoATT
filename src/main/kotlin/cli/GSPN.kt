@@ -10,9 +10,9 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.double
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.clikt.parameters.types.restrictTo
-import solver.AMEnSolve
 import solver.TTVector
 import solver.product
+import solver.solvers.AMEnSolve2
 import kotlin.random.Random
 
 class GSPN: CliktCommand() {
@@ -35,15 +35,25 @@ class Kanban: CliktCommand() {
         println("Direct product statespace size: ${model.places.map{it.capacity+1}.product()}")
         val start = System.currentTimeMillis()
         val steadyStateDistribution = model.getSteadyStateDistribution(true, tolerance) { A ->
-            AMEnSolve(
+            AMEnSolve2(
                     A = A,
                     y = TTVector.zeros(A.modes),
                     residualThreshold = 1e-7,
                     maxSweeps = 50,
                     enrichmentRank = enrichment,
                     normalize = true,
-                    verbose = true
+                    verbose = true,
+                    useApproxResidualForStopping = false
             )
+//            AMEnSolve(
+//                    A = A,
+//                    y = TTVector.zeros(A.modes),
+//                    residualThreshold = 1e-7,
+//                    maxSweeps = 50,
+//                    enrichmentRank = enrichment,
+//                    normalize = true,
+//                    verbose = true
+//            )
         }
         println(steadyStateDistribution*TTVector.ones(steadyStateDistribution.modes))
         val end = System.currentTimeMillis()

@@ -373,7 +373,6 @@ private fun applyALSStep(
     val solveDirectly = currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 100
     val ACore = A.tt.cores[k]
     lateinit var w: SimpleMatrix
-    //TODO: normalization in both methods
     if (solveDirectly) {
         val dim = currCore.modeLength * currCore.rows * currCore.cols
         val FullB = SimpleMatrix(dim, dim)
@@ -422,7 +421,7 @@ private fun applyALSStep(
             try {
                 FullBExtended.solve(FExtended)
             } catch (e: SingularMatrixException) {
-                FullBExtended.pseudoInverse()*FExtended
+                FullBExtended.pseudoInverse() * FExtended
             }
         } else {
             try {
@@ -568,7 +567,7 @@ private fun ALSLocalIterSolve(
 
         if (normalizerVector != null) {
             res += lambda * normalizerVector.T()
-            res = res.concatRows(mat[r[(normalizerVector*y)[0]]])
+            res = res.concatRows(mat[r[(normalizerVector * y)[0]]])
         }
 
         return preconditioner?.mult(res) ?: res
@@ -576,10 +575,11 @@ private fun ALSLocalIterSolve(
 
 //    return BiCGStabL(2, ::computeMatVec, preconditioner?.mult(F) ?: F, maxLocalIters, w0, threshold).solution
     val result =
-            if(normalizerVector != null) {
+            if (normalizerVector != null) {
                 val Fextended = F.concatRows(mat[r[1.0]])
-                val w0extended = w0.concatRows(mat[r[w0.scalarProduct(ones(w0.numRows(),1))]])
-                biCGStab(::computeMatVec, preconditioner?.mult(Fextended) ?: Fextended, maxLocalIters, w0extended, threshold)
+                val w0extended = w0.concatRows(mat[r[w0.scalarProduct(ones(w0.numRows(), 1))]])
+                biCGStab(::computeMatVec, preconditioner?.mult(Fextended)
+                                          ?: Fextended, maxLocalIters, w0extended, threshold)
             } else {
                 biCGStab(::computeMatVec, preconditioner?.mult(F) ?: F, maxLocalIters, w0, threshold)
             }
@@ -922,8 +922,7 @@ fun AMEnSolve(
         if (verbose) println("AMEn sweep $sweep: resnorm=$resNorm threshold=$residualThreshold maxrank=${x.ttRanks().max()}")
         if (resNorm <= residualThreshold) break //TODO: stopping criterion based on the local residual
 //        x.tt.roundRelative(relativeThreashold / 1000000000000) //TODO: use maximal eigenvalue estimate of the matrix
-        x.tt.roundAbsolute(residualThreshold/10)
+        x.tt.roundAbsolute(residualThreshold / 10)
     }
     return TTSolution(x, resNorm)
 }
-

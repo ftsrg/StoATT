@@ -1,20 +1,59 @@
 
 import MDDExtensions.GSCompaction
+import MDDExtensions.toTensorTrain
 import benchmark.generateKanban
-import benchmark.largeTreeString
+import benchmark.generateLongKanban
 import faulttree.BasicEvent
 import faulttree.FaultTree
 import faulttree.FaultTreeNode
-import faulttree.galileoParser
 import gspn.*
 import gspn.rateexpressions.Constant
+import hu.bme.mit.delta.mdd.LatticeDefinition
 import hu.bme.mit.delta.mdd.MddBuilder
+import hu.bme.mit.delta.mdd.MddVariable
+import hu.bme.mit.delta.mdd.MddVariableDescriptor
 import org.ejml.simple.SimpleMatrix
-import solver.*
+import solver.ALSSolve
+import solver.TTSquareMatrix
+import solver.TTVector
 import java.util.*
 import kotlin.math.abs
 
 fun main(args: Array<String>) {
+
+    val rand = Random()
+    val N = generateLongKanban(4, 2, {rand.nextDouble()*9.0+1.0})
+    N.run {
+        computeCapacities()
+        val variableOrder = GSPN.mddFactory.createMddVariableOrder(LatticeDefinition.forSets())
+        var last: MddVariable? = null
+        for (place in places) {
+            last =
+                    if (last == null) variableOrder.createOnTop(MddVariableDescriptor.create(place.name, place.capacity + 1))
+                    else variableOrder.createBelow(last, MddVariableDescriptor.create(place.name, place.capacity + 1))
+        }
+        val capacities = places.map(Place::capacity)
+        val reachableMdd = stateSpace.reachableStatesRoot().toDelta(variableOrder)
+        var p0mdd = stateSpace.calculateTangible().toDelta(variableOrder)
+        val p0mask: TTSquareMatrix = TTSquareMatrix.diag(TTVector(p0mdd.toTensorTrain()))
+        val R0 = transitions.filterIsInstance<ExponentialTransition>().map { it.toTT(variableOrder, places) }.reduce(TTSquareMatrix::plus)
+        val threshold = 1e-8
+        val p0maskRounded = p0mask.copy()
+        p0maskRounded.tt.roundAbsolute(threshold/R0.frobenius())
+        val R0Rounded = R0.copy()
+        R0Rounded.tt.roundAbsolute(threshold/p0mask.frobenius())
+        val res: TTSquareMatrix = p0mask*R0
+        val resCopy = res.copy()
+        var start = System.currentTimeMillis()
+        resCopy.tt.roundAbsolute(1e-12)
+        val fullSVDTime = System.currentTimeMillis()-start
+        val resOtherCopy = res.copy()
+        start = System.currentTimeMillis()
+        resOtherCopy.tt.roundAbsolute(1e-12, true)
+        val iterSVDTime = System.currentTimeMillis()-start
+        val i = 0 // NOP
+    }
+    return
 
     val l1 = 1.0
     val l2 = 0.1
@@ -32,143 +71,16 @@ fun main(args: Array<String>) {
             ExponentialTransition("t4", arrayListOf(Arc.ConstantArc(p[2],1)), arrayListOf(), arrayListOf(), Constant(3.0))
     )
     val g = generateKanban(1, {1.0})
-    val R = g.getRateMatrix()
-    val eps = TTSquareMatrix.diag(TTVector.ones(R.modes)-g.stateSpace.reachableStatesRoot().toTT(g.places.map { it.capacity }))
-    val Q = R - TTSquareMatrix.diag(R*TTVector.ones(R.modes))-eps
-    val Qorig = Q.copy()
-    Q.tt.roundRelative(1e-12)
-    val pi = AMEnSolve(
-            A = Q.T(),
-            y = TTVector.zeros(R.modes),
-            x0 = TTVector.ones(R.modes) / R.numCols.toDouble(),
-            residualThreshold = 1e-7,
-            maxSweeps = 50,
-            enrichmentRank = 2,
-            normalize = true
-    )
-    println((pi.solution * TTVector.ones(pi.solution.modes)))
-    println((Qorig.T() * pi.solution).norm())
-    println("solution:")
-    pi.solution.printElements()
-    println("steady state: ")
-    val ss = pi.solution.hadamard(g.getTangibleMaskVector())
-    ss /= (ss * TTVector.ones(ss.modes))
-    ss.printElements()
-    return
-
-
-//    val M = TTSquareMatrix.rand(Array(4) {2}, arrayOf(1,3,3,3,1), random =  Random(10))
-//    val MInv = DMRGInvert(M, 50, verbose = false, truncationRelativeThreshold = 1e-16)
-//    println(((MInv * M) - TTSquareMatrix.eye(M.modes)).frobenius())
-
-//    val n = 3
-//    val random = Random(1)
-//    val mats = Array(n) {SimpleMatrix.random_DDRM(2, 2, 0.0, 10.0, random)}
-//    val T = kronSumAsTT(mats.toList())
-//    val TInv = approxInvertKronsum(mats.toList(), 100, 0.0)
-//    T.printElements()
-//    (TInv*T).printElements(numDecimals = 5)
-//    println(TInv.ttRanks())
-//    val eye = TTSquareMatrix.eye(T.modes)
-//    println((TInv * T - eye).frobenius()/eye.frobenius())
-//    return
-
-    val testTreeDesc = largeTreeString
-
-    val Ft = galileoParser.parse(testTreeDesc.byteInputStream())
-    println(Ft.getNthMoment(1, 1e-7, { M, b, threshold ->
-        AMEnSolve(
-                M, b,
-                TTVector.ones(b.modes),
-                threshold,
-                20,
-                4
-        )
-    }))
-    return
-
-//    val T = TTSquareMatrix.rand(Array(4) {2}, arrayOf(1,3,3,3,1))
-//    val inv = DMRGInvert(T, 100)
-//    println((inv*T-TTSquareMatrix.eye(T.modes)).frobenius())
-//    return
-
-//    println(Ft.mttfThroughKronsumMethod(500, 50, 1e-16, 1e-16))
-//    return
-
-//    val kronsumComponents = Ft.getKronsumComponents()
-//    FileWriter("kronsumComponents.txt").use { kronsumFile ->
-//        for (component in kronsumComponents) {
-//            component.reshape(1, component.numElements)
-//            kronsumFile.write(component.toString())
-//        }
+    val R1 = g.getRateMatrix()
+    val R2 = g.getRateMatrix(useCompaction = true)
+//    g.computeCapacities()
+//    val mdd = g.stateSpace.reachableStatesRoot()
+//    val order = JavaMddFactory.getDefault().createMddVariableOrder(LatticeDefinition.forSets())
+//    for (place in g.places.reversed()) {
+//        order.createOnTop(MddVariableDescriptor.create(place.name, place.capacity+1))
 //    }
-//    FileWriter("modifier.tt").use { modifierFile ->
-//        val modifierForMTTF = Ft.getModifierForMTTF(Ft.getBaseGenerator())
-//        modifierForMTTF.tt.roundRelative(1e-20)
-//        println(modifierForMTTF.ttRanks())
-//        modifierFile.write(modifierForMTTF.tt.dataAsString())
-//    }
-//    return
-
-    val baseGenerator = Ft.getBaseGenerator()
-    val stateMaskVector = Ft.getOperationalIndicatorVector()
-    stateMaskVector.tt.roundRelative(0.0001)
-    val residualThreshold = 0.00001 * stateMaskVector.norm()
-    val perturbedGeneratorMatrix = Ft.getModifiedGenerator()
-    perturbedGeneratorMatrix.tt.roundRelative(0.0001)
-//
-//    val matFile = FileWriter("modifiedGenerator.tt")
-//    matFile.write(perturbedGeneratorMatrix.tt.dataAsString())
-//    matFile.close()
-//    val vectFile = FileWriter("stateMaskVector.tt")
-//    vectFile.write(stateMaskVector.tt.dataAsString())
-//    vectFile.close()
-//
-//
-//    println(perturbedGeneratorMatrix.tt.dataAsString())
-//    return
-
-    println("ALS:")
-    val r = 4
-    val ones = TTVector.ones(stateMaskVector.modes)
-    var x0 = TTVector.ones(stateMaskVector.modes)
-    for (i in 0 until r) {
-        x0 = x0+x0.hadamard(ones)
-    }
-    x0.divAssign(r.toDouble())
-    x0 = TTVector.rand(x0.modes, x0.tt.ranks().toTypedArray())
-    val alsRes = ALSSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0, residualThreshold = residualThreshold, maxSweeps = 10).solution
-    report(perturbedGeneratorMatrix, stateMaskVector, alsRes, residualThreshold)
-
-    println("DMRG:")
-    var x0DMRG = TTVector.ones(stateMaskVector.modes)
-    for (i in 0 until r) {
-        x0DMRG = x0DMRG+ x0DMRG.hadamard(ones)
-    }
-    x0.divAssign(r.toDouble())
-    val dmrgRes = DMRGSolve(perturbedGeneratorMatrix, stateMaskVector, x0=x0DMRG, absoluteResidualThreshold = residualThreshold, maxSweeps = 10).solution
-    report(perturbedGeneratorMatrix, stateMaskVector, dmrgRes, residualThreshold)
-
-    println("GMRES without preconditioner:")
-    val res = TTGMRES(perturbedGeneratorMatrix, stateMaskVector, TTVector.zeros(stateMaskVector.modes), 0.00001, maxIter = 10000, verbose = true)
-    report(perturbedGeneratorMatrix, stateMaskVector, res.solution, residualThreshold)
-
-    println("GMRES with Jacobi preconditioner:")
-    val prec = jacobiPreconditioner(perturbedGeneratorMatrix, stateMaskVector)
-//    val precdMtx = prec * perturbedGeneratorMatrix
-//    precdMtx.tt.roundRelative(0.0001)
-    val precdVect = prec*stateMaskVector
-    precdVect.tt.roundRelative(0.0001)
-    val resPrecd = TTGMRES(prec, perturbedGeneratorMatrix, precdVect, TTVector.zeros(stateMaskVector.modes), 0.0001)
-    report(perturbedGeneratorMatrix, stateMaskVector, resPrecd.solution, residualThreshold)
-
-    println("TT-Jacobi: ")
-    val res2 = TTJacobi(perturbedGeneratorMatrix, stateMaskVector, 0.0001 * stateMaskVector.norm(), 0.00001, stateMaskVector).solution
-    report(perturbedGeneratorMatrix, stateMaskVector, res2, residualThreshold)
-
-    println()
-    println("MTFF = ${-res2[0]}")
-    println()
+//    val deltamdd = mdd.toDelta(order, 0)
+    return
 }
 
 private fun compactionTest() {

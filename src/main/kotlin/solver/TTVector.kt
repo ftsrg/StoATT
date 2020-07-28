@@ -46,6 +46,9 @@ class TTVector(_tt: TensorTrain) {
             }
             return TTVector(TensorTrain(cores))
         }
+
+        fun rand(modes: Array<Int>, ranks: Int, min: Double = 0.0, max: Double = 10.0, random: Random = Random()): TTVector
+            = rand(modes, Array(1) {1} + Array(modes.size-1) {ranks} + Array(1) {1}, min, max, random)
     }
 
     val numElements = tt.cores.map { it.modeLength.toLong() }.reduce(Long::times)
