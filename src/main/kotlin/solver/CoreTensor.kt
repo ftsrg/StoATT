@@ -7,6 +7,26 @@ import kotlin.math.sqrt
 class CoreTensor(val modeLength: Int, var rows: Int, var cols: Int) {
     val data = Array(modeLength) { SimpleMatrix(rows, cols) }
 
+    companion object {
+        fun fromVector(modeLength: Int, rows: Int, cols: Int, vector: SimpleMatrix): CoreTensor {
+            val res = CoreTensor(modeLength, rows, cols)
+            for (i in 0 until modeLength) {
+                for (beta_minus in 0 until rows) {
+                    for (beta in 0 until cols) {
+                        res[i][beta_minus, beta] = vector[i * rows * cols + beta_minus * cols + beta]
+                    }
+                }
+            }
+            return res
+        }
+    }
+
+    fun vectorize(): SimpleMatrix {
+        val res = leftUnfolding()
+        res.reshape(res.numElements, 1)
+        return res
+    }
+
     operator fun get(modeIdx: Int) = data[modeIdx]
     operator fun get(rowModeIdx: Int, colModeIdx: Int): SimpleMatrix {
         val root = sqrt(modeLength.toDouble())

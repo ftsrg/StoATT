@@ -7,7 +7,7 @@ import solver.TensorTrain
 fun MddHandle.toTensorTrain(): TensorTrain {
     val cores = arrayListOf<CoreTensor>()
 
-    var nextNodes = Array(this.size()) {this[it]}.toSet().toList()
+    var nextNodes = Array(this.variableHandle.variable.get().domainSize) {this[it]}.toSet().toList()
     val firstCore = CoreTensor(this.variableHandle.variable.get().domainSize, 1, nextNodes.size)
     for (i in 0 until this.size()) {
         firstCore[i][nextNodes.indexOf(this[i])] = 1.0

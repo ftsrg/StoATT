@@ -8,14 +8,14 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
     companion object {
         fun zeros(modes: Array<Int>): TTSquareMatrix {
             val cores = ArrayList<CoreTensor>(modes.size)
-            for(i in 0 until modes.size) {
+            for (i in 0 until modes.size) {
                 cores.add(CoreTensor(modes[i] * modes[i], 1, 1))
             }
             return TTSquareMatrix(TensorTrain(cores), modes)
         }
 
         fun rand(modes: Array<Int>, ranks: Array<Int>, min: Double = 0.0, max: Double = 10.0, random: Random = Random()): TTSquareMatrix {
-            assert(modes.size == ranks.size-1)
+            assert(modes.size == ranks.size - 1)
             assert(ranks.first() == 1 && ranks.last() == 1)
             val cores = ArrayList<CoreTensor>(modes.size)
             repeat(modes.size) { k ->
@@ -35,7 +35,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
             val res = zeros(modes)
             for ((coreIdx, m) in modes.withIndex()) {
                 for (i in 0 until m) {
-                    res.tt.cores[coreIdx][i*m+i] = mat[r[1.0]]
+                    res.tt.cores[coreIdx][i * m + i] = mat[r[1.0]]
                 }
             }
             return res
@@ -49,7 +49,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
             val res = TTSquareMatrix(TensorTrain(zeroCores), vect.modes)
             for ((coreIdx, m) in vect.modes.withIndex()) {
                 for (i in 0 until m) {
-                    res.tt.cores[coreIdx][i*m+i] = vect.tt.cores[coreIdx][i].copy()
+                    res.tt.cores[coreIdx][i * m + i] = vect.tt.cores[coreIdx][i].copy()
                 }
             }
             return res
@@ -69,17 +69,17 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
         var tempElem = row
         for (mode in modes) {
             tempDiv /= mode
-            rowIndices.add(tempElem/tempDiv)
+            rowIndices.add(tempElem / tempDiv)
             tempElem %= tempDiv
         }
         tempElem = col
         tempDiv = numCols
         for (mode in modes) {
             tempDiv /= mode
-            colIndices.add(tempElem/tempDiv)
+            colIndices.add(tempElem / tempDiv)
             tempElem %= tempDiv
         }
-        val indices = IntArray(modes.size) { idx -> (rowIndices[idx]*modes[idx]+colIndices[idx]).toInt()}
+        val indices = IntArray(modes.size) { idx -> (rowIndices[idx] * modes[idx] + colIndices[idx]).toInt() }
         return tt.get(*indices)
     }
 
@@ -119,9 +119,9 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
             val matCore = tt.cores[k]
             val newCore = CoreTensor(modes[k], matCore.rows * vectCore.rows, matCore.cols * vectCore.cols)
 
-            for(ik in 0 until newCore.modeLength) {
-                for(jk in 0 until vectCore.modeLength) {
-                    newCore.data[ik] += matCore[ik*modes[k]+jk].kron(vectCore[jk])
+            for (ik in 0 until newCore.modeLength) {
+                for (jk in 0 until vectCore.modeLength) {
+                    newCore.data[ik] += matCore[ik * modes[k] + jk].kron(vectCore[jk])
                 }
             }
             cores.add(newCore)
@@ -151,7 +151,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
     }
 
     operator fun unaryMinus(): TTSquareMatrix {
-        return this*(-1.0)
+        return this * (-1.0)
     }
 
     operator fun minusAssign(M: TTSquareMatrix) {
@@ -170,7 +170,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
         val res = TTSquareMatrix(TensorTrain(zeroCores), modes)
         for ((coreIdx, m) in modes.withIndex()) {
             for (i in 0 until m) {
-                res.tt.cores[coreIdx][i*m+i] = this.tt.cores[coreIdx][i*m+i].copy()
+                res.tt.cores[coreIdx][i * m + i] = this.tt.cores[coreIdx][i * m + i].copy()
             }
         }
         return res
@@ -182,7 +182,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
             val core = this.tt.cores[coreIdx]
             val newCore = CoreTensor(m, core.rows, core.cols)
             for (i in 0 until m) {
-                newCore[i] = core[i*m+i].copy()
+                newCore[i] = core[i * m + i].copy()
             }
             resCores.add(newCore)
         }
@@ -192,7 +192,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
     fun printElements(colSep: String = " ", rowSep: String = "\n", numDecimals: Int = 2) {
         for (r in 0 until numRows) {
             for (c in 0 until numCols) {
-                print("${"%.${numDecimals}f".format(get(r,c))}$colSep")
+                print("${"%.${numDecimals}f".format(get(r, c))}$colSep")
             }
             print(rowSep)
         }
@@ -208,7 +208,7 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
             val modeLength = modes[idx]
             for (i in 0 until modeLength) {
                 for (j in 0 until modeLength) {
-                    transpCore.data[i*modeLength+j] = core.data[j*modeLength+i].copy()
+                    transpCore.data[i * modeLength + j] = core.data[j * modeLength + i].copy()
                 }
             }
             transpCores.add(transpCore)
@@ -216,11 +216,11 @@ class TTSquareMatrix(var tt: TensorTrain, val modes: Array<Int>) {
         return TTSquareMatrix(TensorTrain(transpCores), modes)
     }
 
-    fun divAssign(d: Double) = timesAssign(1.0/d)
+    fun divAssign(d: Double) = timesAssign(1.0 / d)
 
     fun hadamard(B: TTSquareMatrix): TTSquareMatrix {
         require(B.modes.contentEquals(this.modes))
-        { "The matrices must have the same mode sizes!"}
+        { "The matrices must have the same mode sizes!" }
         return TTSquareMatrix(tt.hadamard(B.tt), modes)
     }
 
