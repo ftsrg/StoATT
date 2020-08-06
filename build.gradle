@@ -19,7 +19,7 @@ repositories {
 
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
-    compile group: 'org.ejml', name: 'ejml-all', version: '0.37'
+    compile group: 'org.ejml', name: 'ejml-all', version: '0.39'
     compile "delta:hu.bme.mit.delta: 0.0.1"
     compile "org.antlr:antlr4-runtime:4.7.2"
     antlr 'org.antlr:antlr4:4.7.2'

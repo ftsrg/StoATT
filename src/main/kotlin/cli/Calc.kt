@@ -13,10 +13,11 @@ import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.clikt.parameters.types.restrictTo
 import faulttree.galileoParser
 import solver.*
+import solver.solvers.AMEnALSSolve
 import java.io.FileInputStream
 
 class Calc : CliktCommand(help =
-"""Used for performing the analysis of a model. If a config file is given as input, all the other options are ignored.
+"""Used for performing the analysis of a fault tree model. If a config file is given as input, all the other options are ignored.
 """.trimMargin()
 ) {
     val file by option("-f", "--file",
@@ -26,7 +27,7 @@ class Calc : CliktCommand(help =
     object MomentArgs : OptionGroup() {
         val moment by option("-m", "--moment").int().restrictTo(min = 1).required()
         val solver by option("-s", "--solver")
-                .choice("DMRG", "Neumann", "GMRES", "Jacobi", "AMEn").default("DMRG")
+                .choice("DMRG", "Neumann", "GMRES", "Jacobi", "AMEn", "AMEn-ALS").default("DMRG")
         val preconditioner by option("-prec", "--preconditioner").choice("NS", "DMRG", "Jacobi", "none")
         val threshold by option("-th", "--threshold").double().default(1e-7)
         val method by option("--method").choice("1", "2").int().default(2)
@@ -104,6 +105,15 @@ class Calc : CliktCommand(help =
                                 threshold,
                                 MomentArgs.sweeps ?: 0,
                                 MomentArgs.enrichmentRank ?: 1
+                        )
+                    }
+                    "AMEn-ALS" -> { M, b, threshold ->
+                        AMEnALSSolve(
+                                M,
+                                b,
+                                residualThreshold = threshold,
+                                maxSweeps = momentArgs.sweeps ?: 0,
+                                enrichmentRank = momentArgs.enrichmentRank ?: 1
                         )
                     }
                     else -> throw RuntimeException("Unknown solver")

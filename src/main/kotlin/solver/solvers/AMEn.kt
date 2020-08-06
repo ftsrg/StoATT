@@ -52,7 +52,7 @@ fun AMEnALSSolve(
                 val zy = projectVector(phizy[i], phizy[i + 1], y.tt.cores[i])
                 val znew = zy - zAt
                 val rz1 = z.tt.cores[i].rows
-                val rz2 = z.tt.cores[i].cols
+                val rz2 = if(i==d-1) 1 else z.tt.cores[i+1].rows
                 val znewReshaped = SimpleMatrix(rz1, z.modes[i] * rz2)
                 for (n in 0 until z.modes[i]) {
                     for (beta1 in 0 until rz1) {
@@ -61,11 +61,12 @@ fun AMEnALSSolve(
                         }
                     }
                 }
-                val V = znewReshaped.svd(false).v.T()
+                val V = znewReshaped.svd(true).v.T()
                 val currZCore = z.tt.cores[i]
                 for (n in 0 until currZCore.modeLength) {
                     currZCore[n] = V[0..V.numRows(), 0..rz2]
                 }
+                currZCore.updateDimensions()
             } else {
                 z.tt.rightOrthogonalizeCore(i)
             }
@@ -170,9 +171,12 @@ fun AMEnALSSolve(
                 zNextCore.updateDimensions()
 
                 // enrichment
-                val leftresid = projectMatVec(phiA[i], A1, phizA[i + 1], newU * modifier)
+                val yVect = newU*modifier
+                yVect.reshape(yVect.numElements, 1)
+                val leftresid = projectMatVec(phiA[i], A1, phizA[i + 1], yVect)
                 val lefty = projectVector(phiy[i], phizy[i + 1], y1)
                 val uk = lefty - leftresid
+                uk.reshape(newU.numRows(), uk.numElements/newU.numRows())
 
                 newU = newU.concatColumns(uk)
                 val qr = newU.qr()

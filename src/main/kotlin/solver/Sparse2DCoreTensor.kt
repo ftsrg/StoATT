@@ -16,8 +16,13 @@ class Sparse2DCoreTensor(
         cols: Int,
         private val data: Array<Array<DMatrixSparseCSC>> = Array(modeLength) { Array(modeLength) { DMatrixSparseCSC(rows, cols) } }
 ): Abstract2DCoreTensor(modeLength, rows, cols) {
-    fun get(i: Int, j: Int) = data[i][j]
+    operator fun get(i: Int, j: Int) = data[i][j]
 
+    operator fun set(i: Int, j: Int, value: DMatrixSparseCSC) { data[i][j] = value }
+
+    /**
+     * Returns V*This[i,j]
+     */
     override fun multFromLeft(i: Int, j: Int, V: SimpleMatrix): SimpleMatrix {
         val res = DMatrixRMaj(cols, V.numRows())
         CommonOps_DSCC.multTransAB(data[i][j], V.getMatrix() as DMatrixRMaj, res)
@@ -25,12 +30,20 @@ class Sparse2DCoreTensor(
         return SimpleMatrix(res)
     }
 
+    /**
+     * Returns This[i,j]*V
+     */
     override fun multFromRight(i: Int, j: Int, V: SimpleMatrix): SimpleMatrix {
         val res = DMatrixRMaj(rows, V.numCols())
         CommonOps_DSCC.mult(data[i][j], V.getMatrix() as DMatrixRMaj, res)
         return SimpleMatrix(res)
     }
 
+    /**
+     * Returns a new sparse 2D core tensor, whose (i,j)th matrix matrix is [This[i,j], Zero; Zero, Other[i,j]].
+     * This operation corresponds to the addition of two TT tensors (the cores of the resulting TT are given
+     * by the addition of the appropriate cores).
+     */
     operator fun plus(otherCore: Sparse2DCoreTensor): Sparse2DCoreTensor {
         val resData = Array(modeLength) { i ->
             Array(modeLength) { j ->
@@ -46,6 +59,18 @@ class Sparse2DCoreTensor(
             }
         }
         return Sparse2DCoreTensor(modeLength, rows + otherCore.rows, cols + otherCore.cols, resData)
+    }
+
+    /**
+     * Returns a new sparse 2D core tensor, whose (i,j)th matrix is This[j,i]
+     */
+    fun transpose(): Sparse2DCoreTensor {
+        val resMats = Array(modeLength) {i ->
+            Array(modeLength) { j ->
+                this.data[j][i].copy()
+            }
+        }
+        return Sparse2DCoreTensor(this.modeLength, this.rows, this.cols, resMats)
     }
 
     override fun toDenseCore(): CoreTensor {
