@@ -263,7 +263,7 @@ fun generateLongKanban(numLargeBlocks: Int, N: Int, getNextRate: () -> Double) =
 
         val tsynch23_4 = immediate("tsyncs23_4") {
             input(arc(pout[0]), arc(pout[1]), arc(p[2]))
-            out(arc(p[1]), arc(p[2]), arc(pm[2]))
+            out(arc(p[0]), arc(p[1]), arc(pm[2]))
         }
     }
 

@@ -21,22 +21,40 @@ class Sparse2DCoreTensor(
     operator fun set(i: Int, j: Int, value: DMatrixSparseCSC) { data[i][j] = value }
 
     /**
-     * Returns V*This[i,j]
+     * Returns v*This[i,j]
      */
-    override fun multFromLeft(i: Int, j: Int, V: SimpleMatrix): SimpleMatrix {
-        val res = DMatrixRMaj(cols, V.numRows())
-        CommonOps_DSCC.multTransAB(data[i][j], V.getMatrix() as DMatrixRMaj, res)
+    override fun multFromLeft(i: Int, j: Int, v: SimpleMatrix): SimpleMatrix {
+        val res = DMatrixRMaj(cols, v.numRows())
+        CommonOps_DSCC.multTransAB(data[i][j], v.getMatrix() as DMatrixRMaj, res)
         CommonOps_DDRM.transpose(res)
         return SimpleMatrix(res)
     }
 
     /**
-     * Returns This[i,j]*V
+     * Returns v*This[i,j]
      */
-    override fun multFromRight(i: Int, j: Int, V: SimpleMatrix): SimpleMatrix {
-        val res = DMatrixRMaj(rows, V.numCols())
-        CommonOps_DSCC.mult(data[i][j], V.getMatrix() as DMatrixRMaj, res)
+    override fun multFromLeft(i: Int, j: Int, v: DMatrixSparseCSC): DMatrixSparseCSC {
+        val res = DMatrixSparseCSC(cols, v.numRows)
+        CommonOps_DSCC.mult(v, data[i][j], res)
+        return res
+    }
+
+    /**
+     * Returns This[i,j]*v
+     */
+    override fun multFromRight(i: Int, j: Int, v: SimpleMatrix): SimpleMatrix {
+        val res = DMatrixRMaj(rows, v.numCols())
+        CommonOps_DSCC.mult(data[i][j], v.getMatrix() as DMatrixRMaj, res)
         return SimpleMatrix(res)
+    }
+
+    /**
+     * Returns This[i,j]*v
+     */
+    override fun multFromRight(i: Int, j: Int, v: DMatrixSparseCSC): DMatrixSparseCSC {
+        val res = DMatrixSparseCSC(rows, v.numCols)
+        CommonOps_DSCC.mult(data[i][j], v, res)
+        return res
     }
 
     /**
@@ -44,21 +62,43 @@ class Sparse2DCoreTensor(
      * This operation corresponds to the addition of two TT tensors (the cores of the resulting TT are given
      * by the addition of the appropriate cores).
      */
-    operator fun plus(otherCore: Sparse2DCoreTensor): Sparse2DCoreTensor {
+    fun plus(otherCore: Sparse2DCoreTensor, position: CoreTensorPosition): Sparse2DCoreTensor {
         val resData = Array(modeLength) { i ->
-            Array(modeLength) { j ->
-                val res1 = DMatrixSparseCSC(rows, cols+otherCore.cols)
-                val d = data[i][j]
-                val other = otherCore.data[i][j]
-                CommonOps_DSCC.concatColumns(d, DMatrixSparseCSC(rows, otherCore.cols), res1)
-                val res2 = DMatrixSparseCSC(otherCore.rows, cols+otherCore.cols)
-                CommonOps_DSCC.concatColumns(DMatrixSparseCSC(otherCore.rows, cols), other, res2)
-                val res = DMatrixSparseCSC(rows+otherCore.rows, cols+otherCore.cols)
-                CommonOps_DSCC.concatRows(res1, res2, res)
-                res
+            when(position) {
+                CoreTensorPosition.FIRST -> {
+                    Array(modeLength) {j ->
+                        val d = data[i][j]
+                        val other = otherCore.data[i][j]
+                        val res = DMatrixSparseCSC(1, cols+otherCore.cols)
+                        CommonOps_DSCC.concatColumns(d, other, res)
+                        res
+                    }
+                }
+                CoreTensorPosition.LAST -> {
+                    Array(modeLength) {j ->
+                        val d = data[i][j]
+                        val other = otherCore.data[i][j]
+                        val res = DMatrixSparseCSC(rows+otherCore.rows, 1)
+                        CommonOps_DSCC.concatRows(d, other, res)
+                        res
+                    }
+                }
+                CoreTensorPosition.MIDDLE -> {
+                    Array(modeLength) { j ->
+                        val d = data[i][j]
+                        val other = otherCore.data[i][j]
+                        val res1 = DMatrixSparseCSC(rows, cols+otherCore.cols)
+                        CommonOps_DSCC.concatColumns(d, DMatrixSparseCSC(rows, otherCore.cols), res1)
+                        val res2 = DMatrixSparseCSC(otherCore.rows, cols+otherCore.cols)
+                        CommonOps_DSCC.concatColumns(DMatrixSparseCSC(otherCore.rows, cols), other, res2)
+                        val res = DMatrixSparseCSC(rows+otherCore.rows, cols+otherCore.cols)
+                        CommonOps_DSCC.concatRows(res1, res2, res)
+                        res
+                    }
+                }
             }
         }
-        return Sparse2DCoreTensor(modeLength, rows + otherCore.rows, cols + otherCore.cols, resData)
+        return Sparse2DCoreTensor(modeLength, resData[0][0].numRows, resData[0][0].numCols, resData)
     }
 
     /**
@@ -86,5 +126,31 @@ class Sparse2DCoreTensor(
             }
         }
         return core
+    }
+
+    fun mult(other: Sparse2DCoreTensor): Sparse2DCoreTensor {
+        if(this.modeLength != other.modeLength)
+            throw IllegalArgumentException("Different mode lengths")
+        val resArray = Array(modeLength) {i ->
+            Array(modeLength) { j->
+                var res = DMatrixSparseCSC(this.rows*other.rows, this.cols*other.cols, 0)
+                for(l in 0 until modeLength) {
+                    res += this[i, l].kron(other[l, j])
+                }
+                res
+            }
+        }
+        return Sparse2DCoreTensor(modeLength, this.rows * other.rows, this.cols*other.cols, resArray)
+    }
+
+    fun hadamard(other: Sparse2DCoreTensor): Sparse2DCoreTensor {
+        if(this.modeLength != other.modeLength)
+            throw IllegalArgumentException("Different mode lengths")
+        val resArray = Array(modeLength) { i->
+            Array(modeLength) {j ->
+                this[i,j].kron(other[i,j])
+            }
+        }
+        return Sparse2DCoreTensor(modeLength, rows*other.rows, cols*other.cols, resArray)
     }
 }

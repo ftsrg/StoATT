@@ -113,7 +113,8 @@ class Calc : CliktCommand(help =
                                 b,
                                 residualThreshold = threshold,
                                 maxSweeps = momentArgs.sweeps ?: 0,
-                                enrichmentRank = momentArgs.enrichmentRank ?: 1
+                                enrichmentRank = momentArgs.enrichmentRank ?: 1,
+                                useApproxResidualForStopping = false
                         )
                     }
                     else -> throw RuntimeException("Unknown solver")

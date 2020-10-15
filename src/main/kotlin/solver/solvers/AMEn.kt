@@ -532,8 +532,8 @@ private fun applyALSStep(
     }
     //endregion
 
-//    val solveDirectly =true // currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 100
-    val solveDirectly = currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 100
+    val solveDirectly =false // currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 100
+//    val solveDirectly = currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 100
     val ACore = A.tt.cores[k]
     lateinit var w: SimpleMatrix
     if (solveDirectly) {
@@ -617,8 +617,7 @@ private fun computeNormalizer(x: TTVector, k: Int): SimpleMatrix {
         }
         normalizerRight = sum * normalizerRight
     }
-    // TODO: check middle kron
-    val normalizer = normalizerLeft.kron(ones(x.modes[k]).T()).kron(normalizerRight.T())
+    val normalizer = ones(x.modes[k]).T().kron(normalizerLeft).kron(normalizerRight.T())
     return normalizer
 }
 

@@ -6,13 +6,15 @@ import kotlin.math.sqrt
 data class SolverResult(val solution: SimpleMatrix, val residualNorm: Double)
 
 fun ReGMRES(linearMap: (SimpleMatrix) -> SimpleMatrix, b: SimpleMatrix, m: Int,
-            x0: SimpleMatrix = SimpleMatrix(b.numRows(), 1), threshold: Double): SimpleMatrix {
+            x0: SimpleMatrix = SimpleMatrix(b.numRows(), 1), threshold: Double, maxIters: Int = 200): SimpleMatrix {
     var res = x0
+    var iter = 0
     do {
         val iterResult = GMRES(linearMap, b, m, res)
         res = iterResult.solution
         val realResidualNorm = (linearMap(res)-b).normF()
-    } while (iterResult.residualNorm > threshold || (linearMap(res)-b).normF() > threshold)
+        iter++
+    } while ((iterResult.residualNorm > threshold || (linearMap(res)-b).normF() > threshold) && iter < maxIters)
     return res
 }
 
@@ -180,4 +182,14 @@ fun GMRES(linearMap: (SimpleMatrix)->SimpleMatrix, b: SimpleMatrix, m: Int,
         y[i] /= H[i, i]
     }
     return SolverResult(x0 + V * y, residualNorm)
+}
+
+fun createJacobiPreconditioner(A: (SimpleMatrix)->SimpleMatrix, numCols: Int): (SimpleMatrix)->SimpleMatrix {
+    val res = SimpleMatrix(numCols, 1)
+    val E = eye(numCols)
+    for(i in 0 until numCols) {
+        val v = A(E.col(i))
+        res[i] = if(v[i]==0.0) 0.0 else 1.0/v[i]
+    }
+    return {res.elementMult(it)}
 }

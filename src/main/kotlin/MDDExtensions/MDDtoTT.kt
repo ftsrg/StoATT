@@ -7,28 +7,43 @@ import solver.TensorTrain
 fun MddHandle.toTensorTrain(): TensorTrain {
     val cores = arrayListOf<CoreTensor>()
 
-    var nextNodes = Array(this.variableHandle.variable.get().domainSize) {this[it]}.toSet().toList()
-    val firstCore = CoreTensor(this.variableHandle.variable.get().domainSize, 1, nextNodes.size)
-    for (i in 0 until this.size()) {
-        firstCore[i][nextNodes.indexOf(this[i])] = 1.0
-    }
-    cores.add(firstCore)
+    val levels = arrayListOf<HashSet<MddHandle>>()
+    val domainSizes = arrayListOf<Int>()
 
-    while(!nextNodes[0].isTerminal) {
-        val currNodes = nextNodes
-        nextNodes = currNodes.flatMap { node -> Array(node.size()) { node[it] }.toList() }.toSet().toList()
-        if(nextNodes[0].isTerminal) nextNodes = nextNodes.filter { it.data == true }
-        val newCore = CoreTensor(currNodes[0].variableHandle.variable.get().domainSize, currNodes.size, nextNodes.size)
-        for ((idx, currNode) in currNodes.withIndex()) {
-            for (edge in 0 until currNode.size()) {
-                val targetIdx = nextNodes.indexOf(currNode[edge])
-                if(targetIdx != -1)
-                    newCore[edge][idx, targetIdx] = 1.0
+    var currNodes = hashSetOf(this)
+    levels.add(currNodes)
+    while (!currNodes.any(MddHandle::isTerminal)) {
+        val nexts = hashSetOf<MddHandle>()
+        val domainSize = currNodes.first().variableHandle.variable.get().domainSize
+        domainSizes.add(domainSize)
+        for(n in currNodes) {
+            for(i in 0 until domainSize) {
+                nexts.add(n[i])
             }
         }
-        cores.add(newCore)
+        levels.add(nexts)
+        currNodes = nexts
+    }
+    levels.last().removeIf { it.isTerminalZero }
+
+    for(l in levels.size-2 downTo 0) {
+        levels[l].removeIf { n ->
+            (0 until domainSizes[l]).none {levels[l+1].contains(n[it])}
+        }
     }
 
-    val tensorTrain = TensorTrain(cores)
-    return tensorTrain
+    val levelLists = levels.map { it.toList() }
+    for (l in 0 until levelLists.size-1) {
+        val curr = levelLists[l]
+        val next = levelLists[l+1]
+        val core = CoreTensor( domainSizes[l], curr.size, next.size)
+        for(i in 0 until domainSizes[l]) {
+            for((idx, n) in curr.withIndex()) {
+                val target = next.indexOf(n[i])
+                if(target != -1) core[i][idx, target] = 1.0
+            }
+        }
+        cores.add(core)
+    }
+    return TensorTrain(cores)
 }

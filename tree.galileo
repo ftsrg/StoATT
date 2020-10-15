@@ -1,16 +1,58 @@
-toplevel "MyTree";
-"MyTree" or "EAndD" "AAndFAndBOrC" "MultiAnd";
+toplevel "System";
+"System" or "IO0" "IO1" "IO2" "IO3";
 
-"EventA" lambda=.2;
-"EventB" lambda=.1;
-"EventC" lambda=0.1;
-"EventD" lambda=.3;
-"EventE" lambda=.423;
-"EventF" lambda=0.5;
-"EventG" lambda=0.56;
+"IO0" or "IO0_Decision" "IO0_Voting";
+"IO0_Voting" and "IO0_VoterA" "IO0_VoterB";
+"IO0_Decision" 2of3 "IO0_R" "IO0_G" "IO0_B";
+"IO0_R" or "LG_R" "IO0_Controller_R";
+"IO0_G" or "LG_G" "IO0_Controller_G";
+"IO0_B" or "LG_B" "IO0_Controller_B";
 
-"EAndD" and "EventE" "EventD";
-/* (((a and f) and (b or c)) or (b and c and e and g)) */
-"AAndFAndBOrC" and "EventA" "EventF" "BOrC";
-"BOrC" or "EventB" "EventC";
-"MultiAnd" and "EventB" "EventC" "EventE" "EventG";
+"IO1" or "IO1_Decision" "IO1_Voting";
+"IO1_Voting" and "IO1_VoterA" "IO1_VoterB";
+"IO1_Decision" 2of3 "IO1_R" "IO1_G" "IO1_B";
+"IO1_R" or "LG_R" "IO1_Controller_R";
+"IO1_G" or "LG_G" "IO1_Controller_G";
+"IO1_B" or "LG_B" "IO1_Controller_B";
+
+"IO2" or "IO2_Decision" "IO2_Voting";
+"IO2_Voting" and "IO2_VoterA" "IO2_VoterB";
+"IO2_Decision" 2of3 "IO2_R" "IO2_G" "IO2_B";
+"IO2_R" or "LG_R" "IO2_Controller_R";
+"IO2_G" or "LG_G" "IO2_Controller_G";
+"IO2_B" or "LG_B" "IO2_Controller_B";
+
+"IO3" or "IO3_Decision" "IO3_Voting";
+"IO3_Voting" and "IO3_VoterA" "IO3_VoterB";
+"IO3_Decision" 3of3 "IO3_R" "IO3_G" "IO3_B";
+"IO3_R" or "LG_R" "IO3_Controller_R";
+"IO3_G" or "LG_G" "IO3_Controller_G";
+"IO3_B" or "LG_B" "IO3_Controller_B";
+
+"LG_R" lambda=5.0;
+"LG_G" lambda=5.0;
+"LG_B" lambda=5.0;
+
+"IO0_Controller_R" lambda=7.0;
+"IO0_Controller_G" lambda=7.0;
+"IO0_Controller_B" lambda=7.0;
+"IO0_VoterA" lambda=2.0;
+"IO0_VoterB" lambda=2.0;
+
+"IO1_Controller_R" lambda=7.0;
+"IO1_Controller_G" lambda=7.0;
+"IO1_Controller_B" lambda=7.0;
+"IO1_VoterA" lambda=2.0;
+"IO1_VoterB" lambda=2.0;
+
+"IO2_Controller_R" lambda=7.0;
+"IO2_Controller_G" lambda=7.0;
+"IO2_Controller_B" lambda=7.0;
+"IO2_VoterA" lambda=2.0;
+"IO2_VoterB" lambda=2.0;
+
+"IO3_Controller_R" lambda=7.0;
+"IO3_Controller_G" lambda=7.0;
+"IO3_Controller_B" lambda=7.0;
+"IO3_VoterA" lambda=2.0;
+"IO3_VoterB" lambda=2.0;

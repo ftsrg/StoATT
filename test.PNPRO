@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- This project file has been saved by the New GreatSPN Editor, v.100 --><project name="test" version="121">
+  <gspn name="GSPN" show-color-cmd="false" show-fluid-cmd="false">
+    <nodes>
+      <place marking="1" name="P0" x="3.0" y="9.0"/>
+      <place name="P1" x="11.0" y="9.0"/>
+      <place name="P2" x="21.0" y="9.0"/>
+      <transition name="T0" nservers-x="0.5" type="EXP" x="16.55" y="9.0"/>
+      <transition name="t0" type="IMM" x="7.85" y="9.0"/>
+      <transition name="T1" nservers-x="0.5" type="EXP" x="11.55" y="15.0"/>
+    </nodes>
+    <edges>
+      <arc head="T0" kind="INPUT" tail="P1"/>
+      <arc head="P2" kind="OUTPUT" tail="T0"/>
+      <arc head="t0" kind="INPUT" tail="P0"/>
+      <arc head="P1" kind="OUTPUT" tail="t0"/>
+      <arc head="T1" kind="INPUT" tail="P2"/>
+      <arc head="P0" kind="OUTPUT" tail="T1"/>
+    </edges>
+  </gspn>
+  <measures gspn-name="GSPN" name="Measures" simplified-UI="false">
+    <assignments/>
+    <greatspn/>
+    <formulas>
+      <formula comment="Basic statistics of the toolchain execution." language="STAT"/>
+      <formula comment="All the basic Petri net measures" language="ALL"/>
+    </formulas>
+  </measures>
+</project>

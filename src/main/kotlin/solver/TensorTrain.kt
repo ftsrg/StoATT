@@ -159,7 +159,8 @@ class TensorTrain(val cores: ArrayList<CoreTensor>) {
 
     fun frobenius(): Double {
         //TODO: abs used to protect against NaNs coming from sqrt of negative number resulting from floating point precision error; maybe not the best solution
-        return sqrt(abs(scalarProduct (this))) //TODO: can it be optimized? cache?
+        val scalarProduct = scalarProduct(this)
+        return sqrt(abs(scalarProduct)) //TODO: can it be optimized? cache?
     }
 
     fun leftOrthogonalizeCore(coreIdx: Int) {

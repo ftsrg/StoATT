@@ -6,8 +6,6 @@ import solver.*
 import java.util.*
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.round
-import kotlin.math.sqrt
 
 //private typealias TPhi = List<List<SimpleMatrix>>
 
@@ -22,11 +20,15 @@ fun AMEnALSSolve(
         enrichmentRank: Int,
         normalize: Boolean = false,
         verbose: Boolean = true,
-        residDamp: Double = 1e-2,
+        residDamp: Double = 1e-3,
         truncateBasedOnResidual: Boolean = true,
         useApproxResidualForStopping: Boolean = false,
-        z0: TTVector? = null
+        z0: TTVector? = null,
+        reachableStateSpaceIndicator: TTVector? = null,
+        normalizationFactor: Double = 1.0
 ): TTSolution {
+    val rightSideNorm = y.norm()
+
     val phiA = Array(A.size + 1) { listOf(listOf(ones(1))) }
     val phiy = Array(A.size + 1) { listOf(listOf(ones(1))) }
     val phizA = Array(A.size + 1) { listOf(listOf(ones(1))) }
@@ -48,7 +50,7 @@ fun AMEnALSSolve(
                 val zy = projectVector(phizy[i], phizy[i + 1], y.tt.cores[i])
                 val znew = zy - zAt
                 val rz1 = z.tt.cores[i].rows
-                val rz2 = z.tt.cores[i].cols
+                val rz2 = if(i==d-1) 1 else z.tt.cores[i+1].rows
                 val znewReshaped = SimpleMatrix(rz1, z.modes[i] * rz2)
                 for (n in 0 until z.modes[i]) {
                     for (beta1 in 0 until rz1) {
@@ -57,11 +59,12 @@ fun AMEnALSSolve(
                         }
                     }
                 }
-                val V = znewReshaped.svd(false).v.T()
+                val V = znewReshaped.svd(true).v.T()
                 val currZCore = z.tt.cores[i]
                 for (n in 0 until currZCore.modeLength) {
                     currZCore[n] = V[0..V.numRows(), 0..rz2]
                 }
+                currZCore.updateDimensions()
             } else {
                 z.tt.rightOrthogonalizeCore(i)
             }
@@ -75,14 +78,14 @@ fun AMEnALSSolve(
             phizy[i] = computePhi(phizy[i + 1], z.tt.cores[i], y.tt.cores[i])
         }
 
-        for (i in 0 until d) {
+        coreUpdate@ for (i in 0 until d) {
             val phi1 = phiA[i]
             val phi2 = phiA[i + 1]
             val A1 = A[i]
             val y1 = y.tt.cores[i]
             var rhs = projectVector(phiy[i], phiy[i + 1], y1)
-            if (normalize) rhs = rhs.concatRows(ones(1))
-            val normalizer = if (normalize) computeNormalizer(x, i) else null
+            if (normalize) rhs = rhs.concatRows(normalizationFactor*ones(1))
+            val normalizer = if (normalize) normalizationFactor*computeNormalizer(x, i, reachableStateSpaceIndicator) else null
             applyALSStep(
                     A,
                     x,
@@ -91,7 +94,9 @@ fun AMEnALSSolve(
                     phi1,
                     phi2,
                     residualThreshold * residDamp,
-                    normalizer = normalizer
+                    normalizer = normalizer,
+                    normalizationFactor = normalizationFactor,
+                    maxLocalIters = 200
             )
 
             //truncation
@@ -102,7 +107,7 @@ fun AMEnALSSolve(
             var newV = fullSVD.v
             if (i < d - 1) {
                 if (truncateBasedOnResidual) {
-                    while (true) {
+                    while (newU.numCols() > 0) {
                         val u = newU[0..SimpleMatrix.END, 0..newU.numCols() - 1]
                         val s = newS[0..newS.numRows() - 1, 0..newS.numCols() - 1]
                         val v = newV[0..SimpleMatrix.END, 0..newV.numCols() - 1]
@@ -146,7 +151,6 @@ fun AMEnALSSolve(
             val crzy = projectVector(phizy[i], phizy[i + 1], y1)
             val crzAt = projectMatVec(phizA[i], A1, phizA[i + 1], truncSol)
             val crznew = crzy - crzAt
-            assert(newCore.modeLength * z.ttRanks()[i] * z.ttRanks()[i + 1] == crznew.numElements) //TODO: for debug purposes; remove it once tested
             crznew.reshape(newCore.modeLength * z.ttRanks()[i], z.ttRanks()[i + 1])
             val svd = crznew.svd(true)
             val rank = min(enrichmentRank, svd.u.numCols())
@@ -166,9 +170,12 @@ fun AMEnALSSolve(
                 zNextCore.updateDimensions()
 
                 // enrichment
-                val leftresid = projectMatVec(phiA[i], A1, phizA[i + 1], newU * modifier)
+                val yVect = newU*modifier
+                yVect.reshape(yVect.numElements, 1)
+                val leftresid = projectMatVec(phiA[i], A1, phizA[i + 1], yVect)
                 val lefty = projectVector(phiy[i], phizy[i + 1], y1)
                 val uk = lefty - leftresid
+                uk.reshape(newU.numRows(), uk.numElements/newU.numRows())
 
                 newU = newU.concatColumns(uk)
                 val qr = newU.qr()
@@ -208,7 +215,8 @@ fun AMEnALSSolve(
             if (residNorm < residualThreshold) return TTSolution(x, residNorm)
         } else {
             val residNorm = computeResidualNorm(A, x, y)
-            if (verbose) println("AMEn-ALS sweep ${swp}: resnorm=$residNorm threshold=$residualThreshold maxrank=${x.ttRanks().max()}")
+
+            if (verbose) println("AMEn-ALS sweep ${swp}: resnorm=$residNorm relresnorm=${residNorm/rightSideNorm} threshold=$residualThreshold maxrank=${x.ttRanks().max()}")
             if (residNorm < residualThreshold) return TTSolution(x, residNorm)
         }
     }
@@ -222,6 +230,15 @@ fun AMEnALSSolve(
         if (verbose) println("AMEn-ALS exit: resnorm=$residNorm threshold=$residualThreshold maxrank=${x.ttRanks().max()}")
         return TTSolution(x, residNorm)
     }
+}
+
+private fun getKroneckerEquivalentMatrix(core: CoreTensor, otherRows: Int, otherCols: Int): SimpleMatrix {
+    val resVectLength = core.rows*otherRows*core.cols*otherCols
+    val K = SimpleMatrix(core.modeLength*resVectLength, otherRows*otherCols)
+    for(i in core.data.indices) {
+        K[i*resVectLength, 0] = getKroneckerEquivalentMatrix(core[i], otherRows, otherCols)
+    }
+    return K
 }
 
 private fun computePsi(PsiPrev: TPhi, xCore: CoreTensor, AbstractACore: Abstract2DCoreTensor, yCore: CoreTensor): TPhi {
@@ -313,7 +330,7 @@ private fun projectVector(psi: TPhi, phi: TPhi, y: CoreTensor): SimpleMatrix {
 }
 
 //Phi1[beta][gamma] row vector, Phi2[beta][gamma] col vector
-fun projectMatVec(
+private fun projectMatVec(
         psi: TPhi,
         ACore: Abstract2DCoreTensor,
         phi: TPhi,
@@ -342,7 +359,7 @@ fun projectMatVec(
 
     val lambda = y[y.numElements - 1] //used only if normalization is applied
     val y = if (normalizerVector != null) y[0..y.numElements - 1, 0..1] else y
-    val n_k = round(sqrt(ACore.modeLength.toDouble())).toInt() //TODO: as param? or any other way but not sqrt...
+    val n_k = ACore.modeLength
     var res = SimpleMatrix(n_k * r_kminusx * r_kx, 1)// y.createLike()
 
     //Computation of Y'
@@ -373,7 +390,7 @@ fun projectMatVec(
             val Yj = YPrimeReshaped.rows(jk*ACore.cols, (jk+1)*ACore.cols)
             YDoublePrimeI +=  ACore.multFromRight(ik, jk, Yj)
         }
-        YDoublePrime[ik*R_kminus, (ik+1)*R_kminus] = YDoublePrimeI
+        YDoublePrime[ik*R_kminus, 0] = YDoublePrimeI
     }
 
 
@@ -401,11 +418,35 @@ fun projectMatVec(
 
     if (normalizerVector != null) {
         res += lambda * normalizerVector.T()
-        res = res.concatRows(mat[r[(normalizerVector * y)[0]]])
+        res = res.concatRows(normalizerVector * y)
     }
 
     return preconditioner?.invoke(res) ?: res
 }
+
+//fun projectVecMat(
+//        psi: TPhi,
+//        ACore: Abstract2DCoreTensor,
+//        phi: TPhi,
+//        y: SimpleMatrix,
+//        normalizerVector: SimpleMatrix? = null,
+//        preconditioner: ((SimpleMatrix) -> SimpleMatrix)? = null
+//): SimpleMatrix {
+//    val res = SimpleMatrix()
+//    for(betaMinus in psi.indices) {
+//        for(gammaMinus in psi[betaMinus].indices) {
+//            for(beta in phi.indices) {
+//                for(gamma in phi[beta].indices) {
+//                    for(i in 0 until ACore.modeLength) {
+//                        for(j in 0 until ACore.modeLength) {
+//                            res[i*]
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}
 
 private fun applyALSStep(
         A: Array<Abstract2DCoreTensor>,
@@ -416,7 +457,8 @@ private fun applyALSStep(
         phi: TPhi,
         residualThreshold: Double,
         maxLocalIters: Int = 200,
-        normalizer: SimpleMatrix? = null
+        normalizer: SimpleMatrix? = null,
+        normalizationFactor: Double = 1.0
 ) {
     val currCore = x.tt.cores[k]
 
@@ -460,7 +502,7 @@ private fun applyALSStep(
     lateinit var w: SimpleMatrix
     if (solveDirectly) {
         val dim = currCore.modeLength * currCore.rows * currCore.cols
-        val FullB = SimpleMatrix(dim, dim)
+        var FullB = SimpleMatrix(dim, dim)
         //TODO: Parallel computation
         for (betaMinus in 0 until currCore.rows) {
             for (beta in 0 until currCore.cols) {
@@ -480,12 +522,13 @@ private fun applyALSStep(
         //solve Bw=F
         w = if (normalizer != null) {
             val FullBExtended = FullB.concatRows(normalizer).concatColumns(normalizer.T().concatRows(SimpleMatrix(1, 1)))
-            val FExtended = F.concatRows(mat[r[1.0]])
-            try {
+            val FExtended = F.concatRows(mat[r[normalizationFactor]])
+            val res = try {
                 FullBExtended.solve(FExtended)
             } catch (e: SingularMatrixException) {
                 FullBExtended.pseudoInverse() * FExtended
             }
+            res[0..res.numElements-1, 0..1]
         } else {
             try {
                 FullB.solve(F)
@@ -494,21 +537,41 @@ private fun applyALSStep(
             }
         }
     } else {
-        val w0 = F.createLike()
-        for (i in 0 until currCore.modeLength) {
-            val M = currCore[i]
-            for (row in 0 until M.numRows()) {
-                for (col in 0 until M.numCols()) {
-                    w0[i * M.numRows() * M.numCols() + row * M.numCols() + col] = M[row, col]
-                }
-            }
-        }
+        var w0 = ones(F.numRows(), 1)
+//        var w0 = currCore.leftUnfolding()
+//        w0.reshape(w0.numElements, 1)
+//        for (i in 0 until currCore.modeLength) {
+//            val M = currCore[i]
+//            for (row in 0 until M.numRows()) {
+//                for (col in 0 until M.numCols()) {
+//                    w0[i * M.numRows() * M.numCols() + row * M.numCols() + col] = M[row, col]
+//                }
+//            }
+//        }
+
+//        val linearMap: (SimpleMatrix) -> SimpleMatrix = { projectMatVec(psi, A[k], phi, it, normalizer, null) }
+//        val preconditioner = createJacobiPreconditioner(
+//                linearMap, if(normalizer==null) w0.numElements else w0.numElements+1
+//        )
+        val preconditioner = null
 
         if (normalizer != null) {
-            w = ALSLocalIterSolve(psi, phi, A, w0, F, k, residualThreshold * 0.001, maxLocalIters = maxLocalIters, normalizerVector = normalizer)
+            w0 /= (normalizer*w0)[0]
+            w = ALSLocalIterSolve(
+                    psi, phi, A, w0, F, k,
+                    residualThreshold*0.001,
+                    maxLocalIters = maxLocalIters,
+                    normalizerVector = normalizer,
+                    normalizationFactor = normalizationFactor,
+                    preconditioner = preconditioner
+            )
         } else {
-            w = ALSLocalIterSolve(psi, phi, A, w0, F, k, residualThreshold * 0.001, maxLocalIters = maxLocalIters)
+            w = ALSLocalIterSolve(psi, phi, A, w0, F, k, residualThreshold*0.001,
+                    maxLocalIters = maxLocalIters,
+                    preconditioner = preconditioner
+            )
         }
+        val res=projectMatVec(psi, A[k], phi, w, null)-F
     }
     for (i in 0 until currCore.modeLength) {
         for (beta_minus in 0 until currCore.rows) {
@@ -519,29 +582,51 @@ private fun applyALSStep(
     }
 }
 
-private fun computeNormalizer(x: TTVector, k: Int): SimpleMatrix {
+private fun computeNormalizer(x: TTVector, k: Int, normalizationSetIndicator: TTVector? = null): SimpleMatrix {
     var normalizerLeft = ones(1)
     // TODO: cache
     repeat(k) {
         val coreTensor = x.tt.cores[it]
-        var sum = coreTensor[0].createLike()
-        for (M in coreTensor.data) {
-            sum += M
+        val normCore = normalizationSetIndicator?.tt?.cores?.get(it)
+        var sum =
+                if(normCore==null) coreTensor[0].createLike()
+                else SimpleMatrix(coreTensor.rows*normCore.rows, coreTensor.cols*normCore.cols)
+        for ((idx, M) in coreTensor.data.withIndex()) {
+            sum += (normCore?.get(idx)?.kron(M) ?: M)
         }
-        normalizerLeft *= sum
+        normalizerLeft = normalizerLeft * sum
     }
     var normalizerRight = ones(1)
     for (i in x.tt.cores.size - 1 downTo k + 1) {
         val coreTensor = x.tt.cores[i]
-        var sum = coreTensor[0].createLike()
-        for (M in coreTensor.data) {
-            sum += M
+        val normCore = normalizationSetIndicator?.tt?.cores?.get(i)
+        var sum =
+                if(normCore==null) coreTensor[0].createLike()
+                else SimpleMatrix(coreTensor.rows*normCore.rows, coreTensor.cols*normCore.cols)
+        for ((idx, M) in coreTensor.data.withIndex()) {
+            sum += (normCore?.get(idx)?.kron(M) ?: M)
         }
+//        normalizerRight = sum
         normalizerRight = sum * normalizerRight
     }
-    // TODO: check middle kron
-    val normalizer = normalizerLeft.kron(ones(x.modes[k]).T()).kron(normalizerRight.T())
-    return normalizer
+    val normalizer = ones(x.modes[k]).T().kron(normalizerLeft).kron(normalizerRight.T())
+    if(normalizationSetIndicator == null)
+        return normalizer
+    else {
+        val A = normalizationSetIndicator.tt.cores[k]
+        val B = x.tt.cores[k]
+        // TODO: sparse?
+        val numelementsA = A.rows * A.cols
+        val numelementsB = B.rows * B.cols
+        val modifier = SimpleMatrix(numelementsA * B.rows * B.cols * A.modeLength, numelementsB * B.modeLength)
+        for(i in 0 until A.modeLength) {
+            for(j in 0 until A[i].numRows()) {
+                val r = A[i].row(j).T()
+                modifier[i*numelementsB*numelementsA+j*A.cols*numelementsB, i*numelementsB] = eye(B.rows).kron(r.kron(eye(B.cols)))
+            }
+        }
+        return normalizer*modifier
+    }
 }
 
 private fun ALSLocalIterSolve(
@@ -554,23 +639,32 @@ private fun ALSLocalIterSolve(
         threshold: Double,
         preconditioner: ((SimpleMatrix)->SimpleMatrix)? = null,
         maxLocalIters: Int = 200,
-        normalizerVector: SimpleMatrix? = null
+        normalizerVector: SimpleMatrix? = null,
+        normalizationFactor: Double = 1.0
 ): SimpleMatrix {
     val r_k = phi.size
     val r_kminus = psi.size
-    //TODO: assemble this matrix while computing phi, instead of storing phi in an array-of-arrays
 
     val linearMap: (SimpleMatrix) -> SimpleMatrix = { projectMatVec(psi, A[k], phi, it, normalizerVector, preconditioner) }
 //    return BiCGStabL(2, ::computeMatVec, preconditioner?.mult(F) ?: F, maxLocalIters, w0, threshold).solution
-    val result =
+    val f = if(normalizerVector != null) F.concatRows(mat[r[normalizationFactor]]) else F
+    var result =
             if (normalizerVector != null) {
-                val Fextended = F.concatRows(mat[r[1.0]])
-                val w0extended = w0.concatRows(mat[r[w0.scalarProduct(ones(w0.numRows(), 1))]])
-                biCGStab(linearMap, preconditioner?.invoke(Fextended)
-                                    ?: Fextended, maxLocalIters, w0extended, threshold)
+                val w0extended = w0.concatRows(SimpleMatrix(1,1))
+                biCGStab(linearMap, preconditioner?.invoke(f)
+                                    ?: f, maxLocalIters, w0extended, threshold)
             } else {
-                biCGStab(linearMap, preconditioner?.invoke(F) ?: F, maxLocalIters, w0, threshold)
+                biCGStab(linearMap, preconditioner?.invoke(f) ?: f, maxLocalIters, w0, threshold)
             }
+//    if((linearMap(result) - f).vecNorm2() > threshold) {
+//      var result = if (normalizerVector != null) {
+//            val w0extended = w0.concatRows(SimpleMatrix(1, 1))
+//            ReGMRES(linearMap, preconditioner?.invoke(f)
+//                               ?: f, 5, w0extended, threshold)
+//        } else {
+//            ReGMRES(linearMap, preconditioner?.invoke(f) ?: f, 5, w0, threshold)
+//        }
+//    }
     if (normalizerVector != null) {
         return result[0..result.numElements - 1, 0..1]
     }

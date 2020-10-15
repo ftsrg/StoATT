@@ -102,4 +102,8 @@ class CoreTensor(val modeLength: Int, var rows: Int, var cols: Int) {
                 res[i*rows, j*cols] = this.get(i, j)
         return res
     }
+
+    override fun toString(): String {
+        return super.toString()+" modeLength: $modeLength, rows: $rows, cols: $cols"
+    }
 }

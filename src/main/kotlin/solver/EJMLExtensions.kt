@@ -1,7 +1,11 @@
 package solver
 
+import org.ejml.data.DMatrixSparseCSC
+import org.ejml.data.DMatrixSparseTriplet
 import org.ejml.dense.row.factory.DecompositionFactory_DDRM
+import org.ejml.ops.ConvertDMatrixStruct
 import org.ejml.simple.SimpleMatrix
+import org.ejml.sparse.csc.CommonOps_DSCC
 import java.util.*
 import kotlin.math.*
 
@@ -74,6 +78,9 @@ object r {
 
 fun eye(size: Int) = SimpleMatrix.identity(size)
 fun diag(vararg elements: Double) = SimpleMatrix.diag(*elements)
+/**
+ * Creates a full-1 column vector
+ */
 fun ones(size: Int) = SimpleMatrix(size, 1).apply { fill(1.0) }
 fun ones(rows: Int, cols: Int) = SimpleMatrix(rows, cols).apply { fill(1.0) }
 
@@ -250,4 +257,109 @@ fun restartedLanczos(A: SimpleMatrix, threshold: Double = 1e-15, innerIters: Int
         val residual = eig.value*eig.vector-A*eig.vector
         if(residual.vecNorm2() > threshold) return eig
     }
+}
+
+operator fun DMatrixSparseCSC.plus(rhs: DMatrixSparseCSC): DMatrixSparseCSC {
+    if(this.numRows != rhs.numRows || this.numCols != rhs.numCols)
+        throw IllegalArgumentException("Addition applied to different-sized matrices!")
+    val res = DMatrixSparseCSC(this.numRows, this.numCols, max(this.nz_length, rhs.nz_length))
+    CommonOps_DSCC.add(1.0, this, 1.0, rhs, res, null, null)
+    return res
+}
+
+operator fun DMatrixSparseCSC.times(rhs: DMatrixSparseCSC): DMatrixSparseCSC {
+    if(this.numCols != rhs.numRows)
+        throw IllegalArgumentException("Multiplication applied to incompatible matrices!")
+    val res = DMatrixSparseCSC(this.numRows, rhs.numCols)
+    CommonOps_DSCC.mult(this, rhs, res)
+    return res
+}
+
+fun DMatrixSparseCSC.concatRows(rhs: DMatrixSparseCSC): DMatrixSparseCSC {
+    if(this.numCols != rhs.numCols)
+        throw IllegalArgumentException("Row concatenation applied to matrices with different number of columns!")
+    val res = DMatrixSparseCSC(this.numRows+rhs.numRows, this.numCols, this.nz_length + rhs.nz_length)
+    CommonOps_DSCC.concatRows(this, rhs, res)
+    return res
+}
+
+fun DMatrixSparseCSC.concatCols(rhs: DMatrixSparseCSC): DMatrixSparseCSC {
+    if(this.numRows != rhs.numRows)
+        throw IllegalArgumentException("Column concatenation applied to matrices with different number of rows!")
+    val res = DMatrixSparseCSC(this.numRows, this.numCols + rhs.numCols, this.nz_length + rhs.nz_length)
+    CommonOps_DSCC.concatColumns(this, rhs, res)
+    return res
+}
+
+fun DMatrixSparseCSC.kron(rhs: DMatrixSparseCSC): DMatrixSparseCSC {
+    val res = DMatrixSparseTriplet(this.numRows*rhs.numRows, this.numCols*rhs.numCols, this.nz_length*rhs.nz_length)
+    val iter1 = this.createCoordinateIterator()
+    while(iter1.hasNext()) {
+        val trip1 = iter1.next()
+        val iter2 = rhs.createCoordinateIterator()
+        while(iter2.hasNext()) {
+            val trip2 = iter2.next()
+            res.set(trip1.row*rhs.numRows+trip2.row, trip1.col*rhs.numCols+trip2.col, trip1.value*trip2.value)
+        }
+    }
+    return ConvertDMatrixStruct.convert(res, null as DMatrixSparseCSC?)
+}
+
+fun DMatrixSparseCSC.reshape2(numRows: Int, numCols: Int): DMatrixSparseCSC {
+    val res = DMatrixSparseTriplet(numRows, numCols, this.nz_length)
+    val iter = this.createCoordinateIterator()
+    while(iter.hasNext()) {
+        val triplet = iter.next()
+        val linearPosition = triplet.row*this.numCols+triplet.col
+        val resRow = linearPosition / numCols
+        val resCol = linearPosition % numCols
+        res.addItemCheck(resRow, resCol, triplet.value)
+    }
+    return ConvertDMatrixStruct.convert(res, null as DMatrixSparseCSC?)
+}
+
+fun DMatrixSparseCSC.T(): DMatrixSparseCSC = CommonOps_DSCC.transpose(this, null, null)
+
+/**
+ * Computes a matrix M such that vec(A.kron(X))=M*vec(X) for any otherRows-by-otherCols-sized matrix X,
+ * where vec(.) is the row-major vectorization of a matrix.
+ */
+fun getKroneckerEquivalentMatrix(A: DMatrixSparseCSC, otherRows: Int, otherCols: Int): DMatrixSparseCSC {
+    val resRows = A.numRows * A.numCols * otherRows * otherCols
+    val res = DMatrixSparseTriplet(resRows, otherRows * otherCols, resRows)
+    for(rA in 0 until A.numRows) {
+        for(cA in 0 until A.numCols) {
+            val v = A[rA, cA]
+            for(rX in 0 until otherRows) {
+                for(cX in 0 until otherCols) {
+                    val r = rA*otherRows*A.numCols*otherCols+rX*A.numCols*otherCols+cA*otherCols+cX
+                    val c = rX*otherCols+cX
+                    res.addItemCheck(r, c, v)
+                }
+            }
+        }
+    }
+    return ConvertDMatrixStruct.convert(res, null as DMatrixSparseCSC?)
+}
+
+/**
+ * Computes a matrix M such that vec(A.kron(X))=M*vec(X) for any otherRows-by-otherCols-sized matrix X,
+ * where vec(.) is the row-major vectorization of a matrix.
+ */
+fun getKroneckerEquivalentMatrix(A: SimpleMatrix, otherRows: Int, otherCols: Int): SimpleMatrix {
+    val resRows = A.numRows() * A.numCols() * otherRows * otherCols
+    val res = SimpleMatrix(resRows, otherRows * otherCols)
+    for(rA in 0 until A.numRows()) {
+        for(cA in 0 until A.numCols()) {
+            val v = A[rA, cA]
+            for(rX in 0 until otherRows) {
+                for(cX in 0 until otherCols) {
+                    val r = rA * otherRows * A.numCols() * otherCols + rX * A.numCols() * otherCols + cA * otherCols + cX
+                    val c = rX*otherCols+cX
+                    res[r,c] = v
+                }
+            }
+        }
+    }
+    return res
 }
