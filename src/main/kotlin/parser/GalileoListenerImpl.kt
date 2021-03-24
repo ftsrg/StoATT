@@ -55,10 +55,10 @@ class GalileoListenerImpl : GalileoBaseListener() {
         val rowCtxs = matrixCtx.matrixRow()
         val ret = SimpleMatrix(rowCtxs.size, rowCtxs.size)
         for ((i, rowCtx) in rowCtxs.withIndex()) {
-            if (rowCtx.NUMBER().size != ret.numCols())
+            if (rowCtx.vals.size != ret.numCols())
                 throw RuntimeException("Error when parsing rate matrix: number of columns in a row must be the " +
                                        "same as the number of rows")
-            for ((j, node) in rowCtx.NUMBER().withIndex()) {
+            for ((j, node) in rowCtx.vals.withIndex()) {
                 ret[i, j] = node.text.toDouble()
             }
         }
