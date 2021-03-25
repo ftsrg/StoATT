@@ -17,8 +17,7 @@ import solver.solvers.AMEnALSSolve
 import java.io.FileInputStream
 
 class Calc : CliktCommand(help =
-"""Used for performing the analysis of a fault tree model. If a config file is given as input, all the other options are ignored.
-""".trimMargin()
+"""Used for performing the analysis of a fault tree model.""".trimMargin()
 ) {
     val file by option("-f", "--file",
             help = "The path of the Galileo file describing the model to analyze.")
@@ -33,6 +32,7 @@ class Calc : CliktCommand(help =
         val method by option("--method").choice("1", "2").int().default(2)
         val sweeps by option("--sweeps").int()
         val enrichmentRank by option("--enrichment").int().restrictTo(min=0)
+        val residDamp by option("--damp").double().restrictTo(min=0.0, max=1.0).default(1e-2)
         val expinvterms by option("--expinvterms").int().restrictTo(min = 0)
         val neumannterms by option("--neumannterms").int().restrictTo(min = 0)
     }
@@ -114,7 +114,8 @@ class Calc : CliktCommand(help =
                                 residualThreshold = threshold,
                                 maxSweeps = momentArgs.sweeps ?: 0,
                                 enrichmentRank = momentArgs.enrichmentRank ?: 1,
-                                useApproxResidualForStopping = false
+                                useApproxResidualForStopping = false,
+                                residDamp = momentArgs.residDamp
                         )
                     }
                     else -> throw RuntimeException("Unknown solver")
