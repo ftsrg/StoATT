@@ -143,7 +143,13 @@ class FaultTree(val topNode: FaultTreeNode) {
 
     fun getModifierForMTTF(M: TTSquareMatrix): TTSquareMatrix {
         val stateMaskVector = getOperationalIndicatorVector()
-        val meanExitRate=M.diagVect().norm()/M.numCols
+        val D = M.diagVect()
+        for (core in D.tt.cores) {
+            for (i in (0 until core.data.size)){
+                core.data[i] = core.data[i] / core.modeLength.toDouble()
+            }
+        }
+        val meanExitRate=-(D*TTVector.ones(D.modes))
         // TODO: PAND and SPARE might introduce new absorbing states in the original Markov chain
         val origAbsorbingIndicatorVector = getStrictAbsorbingIndicatorVector()
         val failureIndicatorVector = TTVector.ones(stateMaskVector.modes) - stateMaskVector
