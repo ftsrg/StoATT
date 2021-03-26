@@ -17,9 +17,9 @@ public class GalileoParser extends Parser {
 	protected static final PredictionContextCache _sharedContextCache =
 		new PredictionContextCache();
 	public static final int
-		T__0=1, T__1=2, T__2=3, T__3=4, INT=5, EQ=6, OR=7, AND=8, OF=9, TOPLEVEL=10, 
-		LAMBDA=11, PH=12, PROBABILITY=13, DORMANCY=14, REPAIR=15, FAILURE_STATES=16, 
-		DOUBLE=17, NAME=18, IDENTIFIER=19, COMMENT=20, WS=21;
+		T__0=1, T__1=2, T__2=3, T__3=4, INT=5, EQ=6, OR=7, EXP=8, AND=9, OF=10, 
+		TOPLEVEL=11, LAMBDA=12, PH=13, PROBABILITY=14, DORMANCY=15, REPAIR=16, 
+		FAILURE_STATES=17, DOUBLE=18, NAME=19, IDENTIFIER=20, COMMENT=21, WS=22;
 	public static final int
 		RULE_faulttree = 0, RULE_top = 1, RULE_gate = 2, RULE_basicevent = 3, 
 		RULE_property = 4, RULE_lambda = 5, RULE_phase = 6, RULE_rateMatrix = 7, 
@@ -37,15 +37,16 @@ public class GalileoParser extends Parser {
 
 	private static String[] makeLiteralNames() {
 		return new String[] {
-			null, "';'", "'['", "']'", "','", null, "'='", "'or'", "'and'", "'of'", 
-			"'toplevel'", "'lambda'", "'ph'", "'prob'", "'dorm'", "'repair'", "'failurestates'"
+			null, "';'", "'['", "']'", "','", null, "'='", "'or'", null, "'and'", 
+			"'of'", "'toplevel'", "'lambda'", "'ph'", "'prob'", "'dorm'", "'repair'", 
+			"'failurestates'"
 		};
 	}
 	private static final String[] _LITERAL_NAMES = makeLiteralNames();
 	private static String[] makeSymbolicNames() {
 		return new String[] {
-			null, null, null, null, null, "INT", "EQ", "OR", "AND", "OF", "TOPLEVEL", 
-			"LAMBDA", "PH", "PROBABILITY", "DORMANCY", "REPAIR", "FAILURE_STATES", 
+			null, null, null, null, null, "INT", "EQ", "OR", "EXP", "AND", "OF", 
+			"TOPLEVEL", "LAMBDA", "PH", "PROBABILITY", "DORMANCY", "REPAIR", "FAILURE_STATES", 
 			"DOUBLE", "NAME", "IDENTIFIER", "COMMENT", "WS"
 		};
 	}
@@ -1191,7 +1192,7 @@ public class GalileoParser extends Parser {
 	}
 
 	public static final String _serializedATN =
-		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3\27\u0088\4\2\t\2"+
+		"\3\u608b\ua72a\u8133\ub9ed\u417c\u3be7\u7786\u5964\3\30\u0088\4\2\t\2"+
 		"\4\3\t\3\4\4\t\4\4\5\t\5\4\6\t\6\4\7\t\7\4\b\t\b\4\t\t\t\4\n\t\n\4\13"+
 		"\t\13\4\f\t\f\4\r\t\r\4\16\t\16\4\17\t\17\4\20\t\20\4\21\t\21\4\22\t\22"+
 		"\3\2\3\2\3\2\3\2\5\2)\n\2\3\2\3\2\7\2-\n\2\f\2\16\2\60\13\2\3\2\3\2\3"+
@@ -1201,28 +1202,28 @@ public class GalileoParser extends Parser {
 		"\n\n\f\n\16\ng\13\n\3\n\3\n\3\13\3\13\3\13\3\13\3\f\3\f\3\f\3\f\3\r\3"+
 		"\r\3\r\3\r\3\16\3\16\3\16\3\16\3\17\3\17\3\17\5\17~\n\17\3\20\3\20\3\21"+
 		"\3\21\3\22\3\22\3\22\3\22\3\22\2\2\23\2\4\6\b\n\f\16\20\22\24\26\30\32"+
-		"\34\36 \"\2\3\4\2\7\7\23\23\2\u0083\2$\3\2\2\2\4\63\3\2\2\2\6\66\3\2\2"+
+		"\34\36 \"\2\3\4\2\7\7\24\24\2\u0083\2$\3\2\2\2\4\63\3\2\2\2\6\66\3\2\2"+
 		"\2\b>\3\2\2\2\nK\3\2\2\2\fM\3\2\2\2\16Q\3\2\2\2\20U\3\2\2\2\22e\3\2\2"+
 		"\2\24j\3\2\2\2\26n\3\2\2\2\30r\3\2\2\2\32v\3\2\2\2\34}\3\2\2\2\36\177"+
 		"\3\2\2\2 \u0081\3\2\2\2\"\u0083\3\2\2\2$%\5\4\3\2%.\7\3\2\2&)\5\6\4\2"+
 		"\')\5\b\5\2(&\3\2\2\2(\'\3\2\2\2)*\3\2\2\2*+\7\3\2\2+-\3\2\2\2,(\3\2\2"+
 		"\2-\60\3\2\2\2.,\3\2\2\2./\3\2\2\2/\61\3\2\2\2\60.\3\2\2\2\61\62\7\2\2"+
-		"\3\62\3\3\2\2\2\63\64\7\f\2\2\64\65\7\24\2\2\65\5\3\2\2\2\66\67\7\24\2"+
-		"\2\67;\5\34\17\28:\7\24\2\298\3\2\2\2:=\3\2\2\2;9\3\2\2\2;<\3\2\2\2<\7"+
-		"\3\2\2\2=;\3\2\2\2>B\7\24\2\2?A\5\n\6\2@?\3\2\2\2AD\3\2\2\2B@\3\2\2\2"+
+		"\3\62\3\3\2\2\2\63\64\7\r\2\2\64\65\7\25\2\2\65\5\3\2\2\2\66\67\7\25\2"+
+		"\2\67;\5\34\17\28:\7\25\2\298\3\2\2\2:=\3\2\2\2;9\3\2\2\2;<\3\2\2\2<\7"+
+		"\3\2\2\2=;\3\2\2\2>B\7\25\2\2?A\5\n\6\2@?\3\2\2\2AD\3\2\2\2B@\3\2\2\2"+
 		"BC\3\2\2\2C\t\3\2\2\2DB\3\2\2\2EL\5\f\7\2FL\5\16\b\2GL\5\26\f\2HL\5\30"+
 		"\r\2IL\5\32\16\2JL\5\24\13\2KE\3\2\2\2KF\3\2\2\2KG\3\2\2\2KH\3\2\2\2K"+
-		"I\3\2\2\2KJ\3\2\2\2L\13\3\2\2\2MN\7\r\2\2NO\7\b\2\2OP\t\2\2\2P\r\3\2\2"+
-		"\2QR\7\16\2\2RS\7\b\2\2ST\5\20\t\2T\17\3\2\2\2U[\7\4\2\2VW\5\22\n\2WX"+
-		"\7\3\2\2XZ\3\2\2\2YV\3\2\2\2Z]\3\2\2\2[Y\3\2\2\2[\\\3\2\2\2\\^\3\2\2\2"+
-		"][\3\2\2\2^_\5\22\n\2_`\7\5\2\2`\21\3\2\2\2ab\t\2\2\2bd\7\6\2\2ca\3\2"+
-		"\2\2dg\3\2\2\2ec\3\2\2\2ef\3\2\2\2fh\3\2\2\2ge\3\2\2\2hi\t\2\2\2i\23\3"+
-		"\2\2\2jk\7\22\2\2kl\7\b\2\2lm\7\7\2\2m\25\3\2\2\2no\7\17\2\2op\7\b\2\2"+
-		"pq\t\2\2\2q\27\3\2\2\2rs\7\20\2\2st\7\b\2\2tu\t\2\2\2u\31\3\2\2\2vw\7"+
-		"\21\2\2wx\7\b\2\2xy\t\2\2\2y\33\3\2\2\2z~\5\36\20\2{~\5 \21\2|~\5\"\22"+
-		"\2}z\3\2\2\2}{\3\2\2\2}|\3\2\2\2~\35\3\2\2\2\177\u0080\7\t\2\2\u0080\37"+
-		"\3\2\2\2\u0081\u0082\7\n\2\2\u0082!\3\2\2\2\u0083\u0084\7\7\2\2\u0084"+
-		"\u0085\7\13\2\2\u0085\u0086\7\7\2\2\u0086#\3\2\2\2\n(.;BK[e}";
+		"I\3\2\2\2KJ\3\2\2\2L\13\3\2\2\2MN\7\16\2\2NO\7\b\2\2OP\t\2\2\2P\r\3\2"+
+		"\2\2QR\7\17\2\2RS\7\b\2\2ST\5\20\t\2T\17\3\2\2\2U[\7\4\2\2VW\5\22\n\2"+
+		"WX\7\3\2\2XZ\3\2\2\2YV\3\2\2\2Z]\3\2\2\2[Y\3\2\2\2[\\\3\2\2\2\\^\3\2\2"+
+		"\2][\3\2\2\2^_\5\22\n\2_`\7\5\2\2`\21\3\2\2\2ab\t\2\2\2bd\7\6\2\2ca\3"+
+		"\2\2\2dg\3\2\2\2ec\3\2\2\2ef\3\2\2\2fh\3\2\2\2ge\3\2\2\2hi\t\2\2\2i\23"+
+		"\3\2\2\2jk\7\23\2\2kl\7\b\2\2lm\7\7\2\2m\25\3\2\2\2no\7\20\2\2op\7\b\2"+
+		"\2pq\t\2\2\2q\27\3\2\2\2rs\7\21\2\2st\7\b\2\2tu\t\2\2\2u\31\3\2\2\2vw"+
+		"\7\22\2\2wx\7\b\2\2xy\t\2\2\2y\33\3\2\2\2z~\5\36\20\2{~\5 \21\2|~\5\""+
+		"\22\2}z\3\2\2\2}{\3\2\2\2}|\3\2\2\2~\35\3\2\2\2\177\u0080\7\t\2\2\u0080"+
+		"\37\3\2\2\2\u0081\u0082\7\13\2\2\u0082!\3\2\2\2\u0083\u0084\7\7\2\2\u0084"+
+		"\u0085\7\f\2\2\u0085\u0086\7\7\2\2\u0086#\3\2\2\2\n(.;BK[e}";
 	public static final ATN _ATN =
 		new ATNDeserializer().deserialize(_serializedATN.toCharArray());
 	static {

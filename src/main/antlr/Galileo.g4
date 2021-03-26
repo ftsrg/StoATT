@@ -22,6 +22,7 @@ of: (k=INT)(OF)(n=INT);
 INT: DIGIT+;
 EQ : '=';
 OR : 'or';
+EXP: 'e' | 'E';
 AND : 'and';
 OF: 'of';
 TOPLEVEL : 'toplevel';
@@ -32,7 +33,7 @@ DORMANCY : 'dorm';
 REPAIR : 'repair';
 FAILURE_STATES : 'failurestates';
 fragment DIGIT : [0-9];
-DOUBLE : DIGIT*'.'DIGIT+ | DIGIT+ 'e' '-'? DIGIT+ | DIGIT*'.'DIGIT+ 'e' '-'? DIGIT+;
+DOUBLE : DIGIT*'.'DIGIT+ | DIGIT+ EXP '-'? DIGIT+ | DIGIT*'.'DIGIT+ EXP '-'? DIGIT+;
 NAME: '"'IDENTIFIER*'"'; /*TODO: some better solution for the greediness*/
 
 IDENTIFIER : [a-zA-Z_][a-zA-Z_0-9]*?;
