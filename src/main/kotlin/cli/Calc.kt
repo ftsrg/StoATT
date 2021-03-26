@@ -15,6 +15,9 @@ import faulttree.galileoParser
 import solver.*
 import solver.solvers.AMEnALSSolve
 import java.io.FileInputStream
+import java.lang.Double.min
+import java.lang.Float.max
+import kotlin.math.max
 
 class Calc : CliktCommand(help =
 """Used for performing the analysis of a fault tree model.""".trimMargin()
@@ -74,7 +77,7 @@ class Calc : CliktCommand(help =
                                 M,
                                 b,
                                 absoluteResidualThreshold = threshold,
-                                truncationRelativeThreshold = MomentArgs.threshold / rho,
+                                truncationRelativeThreshold = MomentArgs.threshold * min(1.0/rho, MomentArgs.residDamp),
                                 maxSweeps = MomentArgs.sweeps ?: 0,
                                 verbose = true
                         )
