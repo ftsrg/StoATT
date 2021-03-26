@@ -131,14 +131,12 @@ class FaultTree(val topNode: FaultTreeNode) {
      * Returns the indicator vector of the absorbing state set without taking the system failure formula into account.
      */
     fun getStrictAbsorbingIndicatorVector(): TTVector {
-        val modes = varOrdering.map { it.domainSize }
-        return TTVector(TensorTrain(
-                ArrayList(List(modes.size) {
-                    CoreTensor(modes[it], 1, 1).apply {
-                        set(1, mat[r[1]])
-                    }
-                })
-        ))
+        val order = getVariableOrdering()
+        val origAbsorbingMdd =
+                topNode.getBasicEvents().stream()
+                        .map { it.getAbsorbingStatesAsMdd(order) }
+                        .reduce(MddHandle::intersection).get()
+        return TTVector(origAbsorbingMdd.toTensorTrain())
     }
 
     fun getModifierForMTTF(M: TTSquareMatrix): TTSquareMatrix {

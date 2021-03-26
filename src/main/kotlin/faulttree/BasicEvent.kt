@@ -15,6 +15,12 @@ class BasicEvent(name: String, val failureRate: Double, val dormancy: Double = 1
         return variable
     }
 
+    override fun getAbsorbingStatesAsMdd(order: MddVariableOrder): MddHandle {
+        val builder = MddBuilder<Boolean>(order.createSignatureFromTraceInfos(listOf(name)))
+        return if(repairRate == 0.0) builder.build(arrayOf(1), true)
+        else builder.build(mutableListOf(arrayOf(0), arrayOf(1)), false)
+    }
+
     override fun getSteadyStateVector(): SimpleMatrix {
         return mat[r[repairRate/(failureRate+repairRate)], r[failureRate/(failureRate+repairRate)]]
     }

@@ -20,6 +20,15 @@ class PHBasicEvent(name: String, val rateMatrix: SimpleMatrix, val numFailureSta
         return variable
     }
 
+    override fun getAbsorbingStatesAsMdd(order: MddVariableOrder): MddHandle {
+        val builder = MddBuilder<Boolean>(order.createSignatureFromTraceInfos(listOf(name)))
+        val absorbingStates = arrayListOf<Array<Int>>()
+        for(i in 0 until rateMatrix.numCols()) {
+            if(rateMatrix.row(i).elementSum() == 0.0) absorbingStates.add(arrayOf(i))
+        }
+        return builder.build(absorbingStates, true)
+    }
+
     override fun getSteadyStateVector(): SimpleMatrix {
         val Q = rateMatrix
         val D = rateMatrix * ones(rateMatrix.numCols(), 1)
@@ -27,7 +36,7 @@ class PHBasicEvent(name: String, val rateMatrix: SimpleMatrix, val numFailureSta
         Q.setRow(Q.numRows()-1,0, *(DoubleArray(Q.numCols()) {1.0})) // normalization constraint
         val b = SimpleMatrix(rateMatrix.numCols(), 1)
         b[b.numElements-1] = 1.0
-        return Q.solve(b)
+        return Q.T().solve(b)
     }
 
     companion object {
@@ -74,10 +83,9 @@ class PHBasicEvent(name: String, val rateMatrix: SimpleMatrix, val numFailureSta
                         val newCore = CoreTensor(event.rateMatrix.numElements, 2, 2)
                         for (i in 0 until event.rateMatrix.numRows()) {
                             for (j in 0 until event.rateMatrix.numCols()) {
-                                val otherChangePossible = if (i == j) r[1.0, 0.0] else r[0.0, 0.0]
-                                newCore.data[i * event.rateMatrix.numRows() + j] = mat[
-                                        otherChangePossible, r[event.rateMatrix[i, j], 0.0]
-                                ]
+                                newCore.data[i * event.rateMatrix.numRows() + j] =
+                                        if(i==j) eye(2)
+                                        else mat[r[0, 0], r[event.rateMatrix[i, j], 0.0]]
                             }
                         }
                         return newCore
