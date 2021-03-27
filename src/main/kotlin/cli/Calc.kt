@@ -3,10 +3,7 @@ package cli
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.groups.OptionGroup
 import com.github.ajalt.clikt.parameters.groups.cooccurring
-import com.github.ajalt.clikt.parameters.options.default
-import com.github.ajalt.clikt.parameters.options.flag
-import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.options.required
+import com.github.ajalt.clikt.parameters.options.*
 import com.github.ajalt.clikt.parameters.types.choice
 import com.github.ajalt.clikt.parameters.types.double
 import com.github.ajalt.clikt.parameters.types.int
@@ -27,17 +24,40 @@ class Calc : CliktCommand(help =
             .required()
 
     object MomentArgs : OptionGroup() {
-        val moment by option("-m", "--moment").int().restrictTo(min = 1).required()
-        val solver by option("-s", "--solver")
+        val moment by option("-m", "--moment",
+                help="Sets which moment to calculate (e.g. 1 for mean)")
+                .int().restrictTo(min = 1).required()
+        val solver by option("-s", "--solver",
+                help="Sets the TT-based linear system solver used for the calculation")
                 .choice("DMRG", "Neumann", "GMRES", "Jacobi", "AMEn", "AMEn-ALS").default("DMRG")
-        val preconditioner by option("-prec", "--preconditioner").choice("NS", "DMRG", "Jacobi", "none")
-        val threshold by option("-th", "--threshold").double().default(1e-7)
-        val method by option("--method").choice("1", "2").int().default(2)
-        val sweeps by option("--sweeps").int()
-        val enrichmentRank by option("--enrichment").int().restrictTo(min=0)
-        val residDamp by option("--damp").double().restrictTo(min=0.0, max=1.0).default(1e-2)
-        val expinvterms by option("--expinvterms").int().restrictTo(min = 0)
-        val neumannterms by option("--neumannterms").int().restrictTo(min = 0)
+        val threshold by option("-th", "--threshold",
+                help = "Sets residual norm threshold for stopping.")
+                .double().default(1e-7)
+        val sweeps by option("--sweeps",
+                help = "Sets the maximum number of sweeps for ALS-based solvers (e.g. DMRG, AMEn, AMEn-ALS).")
+                .int()
+        val enrichmentRank by option("--enrichment",
+                help = "Sets the enrichment rank for AMEn methods (AMEn, AMEn-ALS).")
+                .int().restrictTo(min=0)
+        val useDirectForSmall by option("--usedirect",
+                help = "Sets whether to use a direct solver for small local systems in AMEn-ALS")
+                .flag()
+        val residDamp by option("--damp",
+                help="Sets the dampening factor used for truncations in DMRG and AMEn-ALS. The truncation threshold used is residualThreshold*dampening")
+                .double().restrictTo(min=0.0, max=1.0).default(1e-2)
+        val expinvterms by option("--expinvterms")
+                .int().restrictTo(min = 0)
+        val neumannterms by option("--neumannterms")
+                .int().restrictTo(min = 0)
+
+        val method by option("--method",
+                help = "Deprecated, don't use it. (Used to set the formula used for structured MTFF calculation)")
+                .choice("1", "2").int().default(2)
+                .deprecated()
+        val preconditioner by option("-prec", "--preconditioner",
+                help = "Deprecated, don't use it. (Used to set which type of preconditioner to use for linear system solution.)")
+                .choice("NS", "DMRG", "Jacobi", "none")
+                .deprecated()
     }
 
     val momentArgs by MomentArgs.cooccurring()
@@ -118,7 +138,8 @@ class Calc : CliktCommand(help =
                                 maxSweeps = momentArgs.sweeps ?: 0,
                                 enrichmentRank = momentArgs.enrichmentRank ?: 1,
                                 useApproxResidualForStopping = false,
-                                residDamp = momentArgs.residDamp
+                                residDamp = momentArgs.residDamp,
+                                useDirectForSmall = momentArgs.useDirectForSmall
                         )
                     }
                     else -> throw RuntimeException("Unknown solver")

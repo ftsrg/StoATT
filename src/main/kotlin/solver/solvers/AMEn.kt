@@ -29,7 +29,8 @@ fun AMEnALSSolve(
         residDamp: Double = 1e-2,
         truncateBasedOnResidual: Boolean = true,
         useApproxResidualForStopping: Boolean = false,
-        z0: TTVector? = null
+        z0: TTVector? = null,
+        useDirectForSmall: Boolean = false
 ): TTSolution {
     val phiA = Array(A.modes.size + 1) { listOf(listOf(ones(1))) }
     val phiy = Array(A.modes.size + 1) { listOf(listOf(ones(1))) }
@@ -96,7 +97,8 @@ fun AMEnALSSolve(
                     phi1,
                     phi2,
                     residualThreshold * residDamp,
-                    normalizer = normalizer
+                    normalizer = normalizer,
+                    useDirectForSmall = useDirectForSmall
             )
 
             //truncation
@@ -231,102 +233,6 @@ fun AMEnALSSolve(
         return TTSolution(x, residNorm)
     }
 }
-
-//#region AmenMatvec
-//fun AMEnMatvec(
-//        A: TTSquareMatrix,
-//        x: TTVector,
-//        residualThreshold: Double,
-//        maxSweeps: Int,
-//        enrichmentRank: Int,
-//        fkick: Boolean = false,
-//        stoppingCriterion: AmenStoppingCriterion = AmenStoppingCriterion.NORM2,
-//        y0: TTVector? = null,
-//        z0: TTVector? = null
-//): TTSolution {
-//    //Based on the amen_mv function of the matlab TT Toolbox
-//
-//    val realSol =
-//            if(stoppingCriterion == AmenStoppingCriterion.NORM2)
-//                A*x
-//            else null
-//
-//    val y = y0 ?: TTVector.rand(x.modes, 2, 0.0, 1.0)
-//    val z = z0 ?: TTVector.rand(y.modes, enrichmentRank, 0.0, 1.0)
-//    val phizAx = Array(A.modes.size + 1) { listOf(listOf(ones(1))) }
-//    val phizy = Array(A.modes.size + 1) { listOf(listOf(ones(1))) }
-//    val phiyAx = Array(A.modes.size + 1) { listOf(listOf(ones(1))) }
-//
-//    val d = x.modes.size
-//
-//    // Initial orthogonalization
-//    for (i in 0 until d - 1) {
-//        x.tt.leftOrthogonalizeCore(i)
-//        phiyAx[i + 1] = computePsi(phiyAx[i], y.tt.cores[i], A.tt.cores[i], x.tt.cores[i])
-//        z.tt.leftOrthogonalizeCore(i)
-//        phizAx[i + 1] = computePsi(phizAx[i], z.tt.cores[i], A.tt.cores[i], x.tt.cores[i])
-//        phizy[i + 1] = computePsi(phizy[i], z.tt.cores[i], null, y.tt.cores[i])
-//    }
-//
-//    var swp = 0
-//    var dir = 1
-//    var i = d-1
-//    var maxDelta = 0.0
-//    while(swp < maxSweeps) {
-//        for (i in d - 1 downTo 0) {
-//            val xVect = x.tt.cores[i].vectorize()
-//            val cry = projectMatVec(phiyAx[i], A.tt.cores[i], phiyAx[i + 1], xVect)
-//            // TODO: should we also normalize each core to F-Norm 1, like in the matlab code?
-//            val prevYVect = y.tt.cores[i].leftUnfolding()
-//            prevYVect.reshape(prevYVect.numElements, 1)
-//            val dx = (prevYVect - cry).vecNorm2()
-//            if (dx > maxDelta) maxDelta = dx
-//
-//            // truncation and enrichment
-//            if(dir > 0 && i < d-1) {
-//                cry.reshape(y.tt.cores[i].rows*y.modes[i], y.tt.cores[i].cols)
-//                val fullSVD = cry.svd()
-//                val origSize = fullSVD.singularValues.size
-//                var maxIdx = origSize - 1
-//                var sigma2Sum = 0.0
-//                val delta = residualThreshold*fullSVD.w.diag().vecNorm2()/sqrt(d.toDouble())
-//                val delta2 = delta * delta
-//                for (j in origSize - 1 downTo 1) {
-//                    val sigma = fullSVD.singularValues[j]
-//                    val sigma2 = sigma * sigma
-//                    if (sigma2Sum + sigma2 < delta2) {
-//                        maxIdx--
-//                        sigma2Sum += sigma2
-//                    } else break
-//                }
-//                maxIdx = max(0, maxIdx)
-//                val U = fullSVD.u[0..SimpleMatrix.END, 0..maxIdx + 1]
-//                val S = fullSVD.w[0..maxIdx + 1, 0..maxIdx + 1]
-//                val V = fullSVD.v[0..SimpleMatrix.END, 0..maxIdx + 1]
-//
-//                // prepare enrichment
-//                val modifier = S*V.T()
-//                val cryTrunc = U*modifier
-//                val yCurrCore = y.tt.cores[i]
-//                for (j in 0 until yCurrCore.modeLength) {
-//                    yCurrCore[j] = cryTrunc.rows(j * z.ttRanks()[i], (j + 1) * z.ttRanks()[i])
-//                }
-//                yCurrCore.updateDimensions()
-//                var crz = projectMatVec(phizAx[i], A.tt.cores[i], phizAx[i+1], xVect)
-//                val yz = projectVector(phizy[i], phizy[i+1], yCurrCore)
-//                crz -= yz
-//
-//                if(fkick) {
-//                    TODO("Not supported yet")
-//                }
-//            }
-//
-//
-//        }
-//    }
-//
-//}
-//#endregion
 
 private fun computePsi(PsiPrev: TPhi, xCore: CoreTensor, ACore: CoreTensor?, yCore: CoreTensor): TPhi {
     val res = arrayListOf<ArrayList<SimpleMatrix>>()
@@ -494,7 +400,8 @@ private fun applyALSStep(
         phi: TPhi,
         residualThreshold: Double,
         maxLocalIters: Int = 200,
-        normalizer: SimpleMatrix? = null
+        normalizer: SimpleMatrix? = null,
+        useDirectForSmall: Boolean = false
 ) {
     val currCore = x.tt.cores[k]
 
@@ -532,7 +439,7 @@ private fun applyALSStep(
     }
     //endregion
 
-    val solveDirectly =false // currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 100
+    val solveDirectly = useDirectForSmall && currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 100
 //    val solveDirectly = currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 100
     val ACore = A.tt.cores[k]
     lateinit var w: SimpleMatrix
