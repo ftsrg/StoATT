@@ -112,4 +112,10 @@ public interface GalileoVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitOf(GalileoParser.OfContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link GalileoParser#wsp}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitWsp(GalileoParser.WspContext ctx);
 }

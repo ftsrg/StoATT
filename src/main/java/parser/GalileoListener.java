@@ -177,4 +177,14 @@ public interface GalileoListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitOf(GalileoParser.OfContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link GalileoParser#wsp}.
+	 * @param ctx the parse tree
+	 */
+	void enterWsp(GalileoParser.WspContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link GalileoParser#wsp}.
+	 * @param ctx the parse tree
+	 */
+	void exitWsp(GalileoParser.WspContext ctx);
 }

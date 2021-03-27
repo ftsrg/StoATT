@@ -1,7 +1,9 @@
 package parser
 
 import faulttree.*
+import org.antlr.v4.runtime.Token
 import org.ejml.simple.SimpleMatrix
+import java.lang.UnsupportedOperationException
 
 class GalileoListenerImpl : GalileoBaseListener() {
     lateinit var faultTree: FaultTree private set
@@ -10,6 +12,7 @@ class GalileoListenerImpl : GalileoBaseListener() {
         object OR : GateType()
         object AND : GateType()
         data class K_OF_N(val k: Int, val n: Int) : GateType()
+        object WSP : GateType()
     }
 
     private data class PendingNode(val name: String, val type: GateType, val inputs: Collection<String>)
@@ -20,13 +23,14 @@ class GalileoListenerImpl : GalileoBaseListener() {
 
     override fun enterGate(ctx: GalileoParser.GateContext) {
         val newNode = when {
-            ctx.operation().or() != null -> PendingNode(ctx.name.text, GateType.OR, ctx.inputs.map { it.text })
-            ctx.operation().and() != null -> PendingNode(ctx.name.text, GateType.AND, ctx.inputs.map { it.text })
+            ctx.operation().or() != null -> PendingNode(ctx.name.text, GateType.OR, ctx.inputs.map(Token::getText))
+            ctx.operation().and() != null -> PendingNode(ctx.name.text, GateType.AND, ctx.inputs.map(Token::getText))
             ctx.operation().of() != null -> {
                 val k = ctx.operation().of().k.text.toInt()
                 val n = ctx.operation().of().n.text.toInt()
-                PendingNode(ctx.name.text, GateType.K_OF_N(k, n), ctx.inputs.map { it.text })
+                PendingNode(ctx.name.text, GateType.K_OF_N(k, n), ctx.inputs.map(Token::getText))
             }
+            ctx.operation().wsp() != null -> PendingNode(ctx.name.text, GateType.WSP, ctx.inputs.map(Token::getText))
             else -> throw Exception("Unknown type \"${ctx.operation().text}\" for node ${ctx.name.text} ")
         }
         if (!tryToProcess(newNode)) pendingFTNodes.add(newNode)
@@ -90,6 +94,23 @@ class GalileoListenerImpl : GalileoBaseListener() {
         is GateType.AND -> AndGate(*pendingNode.inputs.map { createdFaultTreeNodes[it]!! }.toTypedArray())
         is GateType.OR -> OrGate(*pendingNode.inputs.map { createdFaultTreeNodes[it]!! }.toTypedArray())
         is GateType.K_OF_N -> VotingGate(pendingNode.type.k, *pendingNode.inputs.map { createdFaultTreeNodes[it]!! }.toTypedArray())
+        is GateType.WSP -> wspToPhaseTypeBE(pendingNode)
+    }
+
+    private fun wspToPhaseTypeBE(wsp: PendingNode): PHBasicEvent {
+        check(wsp.type == GateType.WSP)
+        val rateMatrix = SimpleMatrix(wsp.inputs.size+1, wsp.inputs.size+1)
+        for((i, inpName) in wsp.inputs.withIndex()) {
+            val inp = createdFaultTreeNodes[inpName]
+            if(inp !is BasicEvent || inp.dormancy > 0)
+                throw UnsupportedOperationException("Only WSPs with 0-dorm exponential basic event inputs are supported yet.")
+            if(inp.repairRate > 0)
+                throw UnsupportedOperationException("Inputs of dynamic gates must not be repairable.")
+            //TODO: check that the input is not an input of any other gate
+
+            rateMatrix[i, i+1] = inp.failureRate
+        }
+        return PHBasicEvent(wsp.name, rateMatrix, 1)
     }
 
     override fun enterTop(ctx: GalileoParser.TopContext) {

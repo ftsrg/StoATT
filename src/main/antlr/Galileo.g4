@@ -14,10 +14,11 @@ probability : PROBABILITY EQ val=(DOUBLE|INT);
 dormancy : DORMANCY EQ val=(DOUBLE|INT);
 repair: REPAIR EQ val=(DOUBLE|INT);
 
-operation : (or|and|of);
+operation : (or|and|of|wsp);
 or : OR;
 and: AND;
 of: (k=INT)(OF)(n=INT);
+wsp: WSP;
 
 INT: DIGIT+;
 EQ : '=';
@@ -25,6 +26,7 @@ OR : 'or';
 EXP: 'e' | 'E';
 AND : 'and';
 OF: 'of';
+WSP: 'wsp';
 TOPLEVEL : 'toplevel';
 LAMBDA : 'lambda';
 PH: 'ph';

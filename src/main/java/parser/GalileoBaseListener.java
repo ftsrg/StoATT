@@ -215,6 +215,18 @@ public class GalileoBaseListener implements GalileoListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitOf(GalileoParser.OfContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterWsp(GalileoParser.WspContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitWsp(GalileoParser.WspContext ctx) { }
 
 	/**
 	 * {@inheritDoc}
