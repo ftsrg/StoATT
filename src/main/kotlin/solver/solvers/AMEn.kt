@@ -119,7 +119,7 @@ fun AMEnALSSolve(
                         if (normalize)
                             product = product.concatRows(normalizer!! * currSol)
                         val res = rhs - product
-                        if (res.vecNorm2() > residualThreshold * residDamp) break
+                        if (res.vecNorm2() > residualThreshold * residDamp || u.numCols()<=1) break
                         newU = u
                         newS = s
                         newV = v
@@ -217,9 +217,11 @@ fun AMEnALSSolve(
             if (verbose) println("AMEn-ALS sweep ${swp}: resnorm~=$residNorm threshold=$residualThreshold maxrank=${x.ttRanks().max()}")
             if (residNorm < residualThreshold) return TTSolution(x, residNorm)
         } else {
-            val residNorm = (A * x - y).norm()
+            val resid = (A*x-y)
+            val residNorm = resid.norm()
             if (verbose) println("AMEn-ALS sweep ${swp}: resnorm=$residNorm threshold=$residualThreshold maxrank=${x.ttRanks().max()}")
-            if (residNorm < residualThreshold) return TTSolution(x, residNorm)
+            if (residNorm < residualThreshold)
+                return TTSolution(x, residNorm)
         }
     }
 
