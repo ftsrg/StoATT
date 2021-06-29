@@ -7,7 +7,6 @@ plugins {
 
 
 apply plugin: 'antlr'
-//apply plugin: 'application'
 
 version '1.0-SNAPSHOT'
 
@@ -47,7 +46,6 @@ compileTestKotlin {
 
 jar {
     manifest {
-//        attributes 'Main-Class': 'BenchmarkKt'
         attributes 'Main-Class': 'cli.CLIMainKt'
     }
     from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
