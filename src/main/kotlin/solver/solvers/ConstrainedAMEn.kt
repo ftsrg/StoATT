@@ -8,6 +8,7 @@ import solver.*
 import java.util.*
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sqrt
 
 
 object ConstrainedAMEnSolver {
@@ -86,6 +87,7 @@ object ConstrainedAMEnSolver {
             }
 
             coreUpdate@ for (i in 0 until d) {
+//                if(verbose) println("Updating core $i")
                 val phi1 = phiA[i]
                 val phi2 = phiA[i + 1]
                 val A1 = A[i]
@@ -106,7 +108,8 @@ object ConstrainedAMEnSolver {
                         constraintCores,
                         residualThreshold * residDamp,
                         normalizer = normalizer,
-                        maxLocalIters = 200
+                        maxLocalIters = 200,
+                        localRhs = rhs
                 )
 
                 //truncation
@@ -117,7 +120,7 @@ object ConstrainedAMEnSolver {
                 var newV = fullSVD.v
                 if (i < d - 1) {
                     if (truncateBasedOnResidual) {
-                        while (true) {
+                        while (newU.numCols() > 1) {
                             val u = newU[0..SimpleMatrix.END, 0..newU.numCols() - 1]
                             val s = newS[0..newS.numRows() - 1, 0..newS.numCols() - 1]
                             val v = newV[0..SimpleMatrix.END, 0..newV.numCols() - 1]
@@ -247,11 +250,32 @@ object ConstrainedAMEnSolver {
                 if (residNorm < residualThreshold) return TTSolution(x, residNorm)
             } else {
                 val residNorm =
-                    computeResidualNorm(AForResidual, x, y)
-
+                        if (statesForEnumeratedResidualComputation == null) {
+                            computeResidualNorm(AForResidual, x, y)
+                        } else {
+                            var res = 0.0
+                            statesForEnumeratedResidualComputation.mapTuples { tuple: List<Int> ->
+                                var termX = ones(1)
+                                for ((k, ik) in tuple.withIndex().reversed()) {
+                                    val crA = AForResidual[k]
+                                    val constrCore = constraintCores.tt.cores[k]
+                                    val crX = x.tt.cores[k]
+                                    termX.reshape(crA.cols, constrCore.cols*crX.cols)
+                                    var nextTerm = SimpleMatrix(crA.rows, constrCore.rows*crX.rows)
+                                    val V = termX * constrCore[ik].kron(crX[ik]).T()
+                                    for(jk in 0 until crA.modeLength) {
+                                        nextTerm += crA.multFromRight(ik, jk, V)
+                                    }
+                                    termX = nextTerm
+                                }
+                                val termY = y.tt.get(*(tuple.toIntArray()))
+                                res += (termX[0,0]-termY) * (termX[0,0]-termY)
+                            }
+                            sqrt(res)
+                        }
 
                 if (verbose) println("AMEn-ALS sweep ${swp}: resnorm=$residNorm threshold=$residualThreshold maxrank=${x.ttRanks().max()}")
-                if (verbose) println("AMEn-ALS sweep ${swp}: resnorm~=$residNorm threshold=$residualThreshold maxrank=${x.ttRanks().max()}")
+                if (verbose) println("AMEn-ALS sweep ${swp}: resnorm~=${constraintCores.hadamard(z).norm()} threshold=$residualThreshold maxrank=${x.ttRanks().max()}")
                 if (residNorm < residualThreshold) return TTSolution(x, residNorm)
             }
         }
@@ -305,7 +329,7 @@ object ConstrainedAMEnSolver {
         }
 
         val dim1 = lowRankRepLeft.tt.cores[k].rows * kroneckerCores[k].rows
-        left.reshape(dim1, dim1)
+        left.reshape(dim1, dim1) 
         val dim2 = lowRankRepRight.tt.cores[k].cols * kroneckerCores[k].cols
         right.reshape(dim2, dim2)
         return eye(lowRankRepLeft.modes[k]).kron(left.kron(right))
@@ -644,7 +668,8 @@ object ConstrainedAMEnSolver {
             kroneckerConstraintVector: TTVector,
             residualThreshold: Double,
             maxLocalIters: Int = 200,
-            normalizer: SimpleMatrix? = null
+            normalizer: SimpleMatrix? = null,
+            localRhs: SimpleMatrix
     ) {
         val kroneckerConstraintCores = kroneckerConstraintVector.tt.cores
         val constrCore = kroneckerConstraintCores[k]
@@ -653,45 +678,7 @@ object ConstrainedAMEnSolver {
         val currCore = x.tt.cores[k]
 
         //Local solution
-
-        //region Computation of local right-hand side
-        //assemble full F=[ Q^T*f^_k(0); Q^T*f^_k(1) ... Q^T*f^_k(n_k) ]  matrix
-        var leftPart = eye(1)
-        for (l in 0 until k) {
-            val currConstrCore = kroneckerConstraintCores[l]
-            var currFactor = SimpleMatrix(
-                    currConstrCore.rows * x.tt.cores[l].rows * f.tt.cores[l].rows,
-                    currConstrCore.cols * x.tt.cores[l].cols * f.tt.cores[l].cols)
-            for (m in 0 until x.modes[l])
-                currFactor += currConstrCore[m].kron(x.tt.cores[l][m]).kron(f.tt.cores[l][m])
-            leftPart *= currFactor
-        }
-        var rightPart = eye(1)
-        for (l in x.modes.size - 1 downTo k + 1) {
-            val currConstrCore = kroneckerConstraintCores[l]
-            var currFactor = SimpleMatrix(
-                    currConstrCore.rows * x.tt.cores[l].rows * f.tt.cores[l].rows,
-                    currConstrCore.cols * x.tt.cores[l].cols * f.tt.cores[l].cols)
-            for (m in 0 until x.modes[l])
-                currFactor += currConstrCore[m].kron(x.tt.cores[l][m]).kron(f.tt.cores[l][m])
-            rightPart = currFactor * rightPart
-        }
-        var F = SimpleMatrix(
-                currCore.modeLength * constrCore.rows *  currCore.rows * constrCore.cols * currCore.cols, 1)
-        val middleAux = SimpleMatrix(constrCore.rows * currCore.rows, constrCore.cols * currCore.cols)
-        for (i in 0 until currCore.modeLength) {
-            for (alphaMinus in 0 until currCore.rows) {
-                for (alpha in 0 until currCore.cols) {
-                    middleAux[alphaMinus, alpha] = 1.0
-                    val elem = leftPart * middleAux.kron(f.tt.cores[k][i]) * rightPart
-                    assert(elem.numElements == 1)
-                    F[i * currCore.rows * currCore.cols + alphaMinus * currCore.cols + alpha] = elem[0]
-                    middleAux[alphaMinus, alpha] = 0.0
-                }
-            }
-        }
-        F = KT * projectMatVecTranspose(psi, A[k], phi, F)
-        //endregion
+        val F = KT * projectMatVecTranspose(psi, A[k], phi, localRhs)
 
 //    val solveDirectly =true // currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 100
         val solveDirectly = currCore.modeLength * currCore.modeLength * currCore.cols * currCore.rows < 100
@@ -776,7 +763,7 @@ object ConstrainedAMEnSolver {
                         kroneckerConstraintMatrix = K
                 )
             }
-            val res = projectMatVec(psi, A[k], phi, w, null) - F
+//            val res = projectMatVec(psi, A[k], phi, w, null) - F
         }
         for (i in 0 until currCore.modeLength) {
             for (beta_minus in 0 until currCore.rows) {
