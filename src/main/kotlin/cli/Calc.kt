@@ -1,5 +1,7 @@
 package cli
 
+import MDDExtensions.calculateNonzeroCount
+import MDDExtensions.toTensorTrain
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.groups.OptionGroup
 import com.github.ajalt.clikt.parameters.groups.cooccurring
@@ -13,8 +15,7 @@ import solver.*
 import solver.solvers.AMEnALSSolve
 import java.io.FileInputStream
 import java.lang.Double.min
-import java.lang.Float.max
-import kotlin.math.max
+import java.math.BigInteger
 
 class Calc : CliktCommand(help =
 """Used for performing the analysis of a fault tree model.""".trimMargin()
@@ -29,7 +30,7 @@ class Calc : CliktCommand(help =
                 .int().restrictTo(min = 1).required()
         val solver by option("-s", "--solver",
                 help="Sets the TT-based linear system solver used for the calculation")
-                .choice("DMRG", "Neumann", "GMRES", "Jacobi", "AMEn", "AMEn-ALS").default("DMRG")
+                .choice("DMRG", "Neumann", "GMRES", "Jacobi", "AMEn", "AMEn-ALS", "SAMEn").default("DMRG")
         val threshold by option("-th", "--threshold",
                 help = "Sets residual norm threshold for stopping.")
                 .double().default(1e-7)
@@ -62,10 +63,25 @@ class Calc : CliktCommand(help =
 
     val momentArgs by MomentArgs.cooccurring()
     val steady by option("-st", "--steady").flag()
+    val stats by option("--stat").flag()
 
     override fun run() {
         println("Fault tree file: $file")
         val tree = FileInputStream(file).use { galileoParser.parse(it) }
+        if (stats) {
+            val operationalSize = tree.nonFailureAsMdd().calculateNonzeroCount()
+            println("operational size: ${operationalSize.toDouble()}")
+            val train = tree.nonFailureAsMdd().toTensorTrain()
+            val mddSize = train.ranks().max()
+            println("mdd size: $mddSize")
+            val potentialStateSpace = train.cores.map { BigInteger.valueOf(it.modeLength.toLong()) }.reduce(BigInteger::multiply)
+            println("potential state space: ${potentialStateSpace.toDouble()}")
+
+            val Q = tree.getModifiedGenerator()
+            Q.tt.roundAbsolute(1e-16)
+            Q.tt.roundRelative(1e-16)
+            println("modified rounded generator max rank: ${Q.ttRanks().max()}")
+        }
         if (steady) {
             val start = System.currentTimeMillis()
             val ssvector = tree.getSteadyStateDistribution()
@@ -90,6 +106,18 @@ class Calc : CliktCommand(help =
                         convergenceThreshold = MomentArgs.threshold, //TODO: separate parameter
                         verbose = true
                 )
+            } else if(MomentArgs.solver == "SAMEn") {
+                tree.getNthMomentSparse(MomentArgs.moment, MomentArgs.threshold) { M, b, threshold ->
+                    AMEnALSSolve(
+                            M as Array<Abstract2DCoreTensor>,
+                            b,
+                            residualThreshold = threshold,
+                            maxSweeps = momentArgs.sweeps ?: 0,
+                            enrichmentRank = momentArgs.enrichmentRank ?: 1,
+                            useApproxResidualForStopping = false,
+                            residDamp = momentArgs.residDamp
+                    )
+                }
             } else {
                 val solverFunc: (TTSquareMatrix, TTVector, Double) -> TTSolution = when (MomentArgs.solver) {
                     "DMRG" -> { M, b, threshold ->

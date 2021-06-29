@@ -32,6 +32,30 @@ fun FaultTree.getNthMoment(n: Int, relativeThreshold: Double, solver: (TTSquareM
     return (if(n % 2 == 0) 1 else -1) * (left * right)
 }
 
+fun FaultTree.getNthMomentSparse(n: Int, relativeThreshold: Double, solver: (Array<Sparse2DCoreTensor>, TTVector, threshold: Double)->TTSolution): Double {
+
+    val variables = this.getOrderedVariables()
+    val pi0Cores = Array(variables.size) {
+        val core = CoreTensor(variables[it].variableDescriptor.domainSize, 1, 1)
+        core[0][0] = 1.0
+        return@Array core
+    }
+    val Q = this.getModifiedGeneratorAsSparseCores().toTypedArray()
+    val QT = Q.map(Sparse2DCoreTensor::transpose).toTypedArray()
+    var left = TTVector(TensorTrain(ArrayList(pi0Cores.toList())))
+    var right = TTVector.ones(left.modes)
+
+    repeat(n) {
+        if( (left.ttRanks().max() ?: 0) <= (right.ttRanks().max() ?: 0) )
+            left = solver(QT, left, relativeThreshold*left.norm()).solution
+        else
+            right = solver(Q, right, relativeThreshold*right.norm()).solution
+    }
+
+    return (if(n % 2 == 0) 1 else -1) * (left * right)
+}
+
+
 fun FaultTree.getSteadyStateDistribution(): TTVector {
 //    this will be needed only for DFT-s
 //    val R = this.getBaseRateMatrix()

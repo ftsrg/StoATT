@@ -363,3 +363,14 @@ fun getKroneckerEquivalentMatrix(A: SimpleMatrix, otherRows: Int, otherCols: Int
     }
     return res
 }
+
+fun SimpleMatrix.toSparse(): DMatrixSparseCSC {
+    val triplets = DMatrixSparseTriplet(this.numRows(), this.numCols(), this.numElements)
+    for (i in 0 until this.numRows()) {
+        for (j in 0 until this.numCols()) {
+            val v = this[i, j]
+            if(v != 0.0) triplets.addItem(i, j, v)
+        }
+    }
+    return ConvertDMatrixStruct.convert(triplets, null as DMatrixSparseCSC?)
+}

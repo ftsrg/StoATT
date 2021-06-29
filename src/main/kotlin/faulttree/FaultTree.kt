@@ -1,5 +1,6 @@
 package faulttree
 
+import MDDExtensions.toSparseTTDiagMatrix
 import MDDExtensions.toTensorTrain
 import MDDExtensions.union
 import MDDExtensions.withoutVar
@@ -9,6 +10,8 @@ import hu.bme.mit.delta.java.mdd.impl.DefaultJavaMddFactory
 import hu.bme.mit.delta.mdd.LatticeDefinition
 import hu.bme.mit.delta.mdd.MddHandle
 import hu.bme.mit.delta.mdd.MddVariable
+import org.ejml.data.DMatrixSparseCSC
+import org.ejml.ops.ConvertDMatrixStruct
 import org.ejml.simple.SimpleMatrix
 import solver.*
 import kotlin.math.max
@@ -37,6 +40,10 @@ class FaultTree(val topNode: FaultTreeNode) {
         return varOrdering
     }
 
+    /**
+     * Returns an MDD representing the set of states which are either working or
+     * are reachable in one step from a working state.
+     */
     fun getWorkingAndJustFailedAsMDD(): MddHandle {
         val working = nonFailureAsMdd
         return varOrdering.map { withoutVar(working, it) }
@@ -123,8 +130,27 @@ class FaultTree(val topNode: FaultTreeNode) {
         val M = getBaseGenerator()
         val S = getModifierForMTTF(M)
         val res = M - S
-        res.tt.roundRelative(0.0)
+//        res.tt.roundRelative(0.0)
         return res
+    }
+
+
+    fun getModifiedGeneratorAsSparseCores(): List<Sparse2DCoreTensor> {
+        //TODO: this is just a quick proto to check if sparse AMEn performs better
+        //      then the dense one. Creating the dense cores and then transforming
+        //      to sparse is very inefficient and should be avoided.
+        val M = getBaseGenerator()
+        val S = getModifierForMTTF(M)
+        val res = M - S
+        val sparseCores = res.tt.cores.mapIndexed { idx, core ->
+            val data = Array(res.modes[idx]) { i ->
+                Array(res.modes[idx]) { j ->
+                    core[i,j].toSparse()
+                }
+            }
+            Sparse2DCoreTensor(res.modes[idx], core.rows, core.cols, data)
+        }
+        return sparseCores
     }
 
     /***
@@ -225,38 +251,5 @@ class FaultTree(val topNode: FaultTreeNode) {
         val mdd = nonFailureAsMdd()
 
         return TTVector(mdd.toTensorTrain())
-
-        var currHandles = arrayListOf(mdd)
-        while (!(currHandles.isEmpty() || currHandles[0].isTerminal)) {
-            val nextHandlesSet = hashSetOf<MddHandle>()
-            for (handle in currHandles) {
-                nextHandlesSet.add(handle[0])
-                nextHandlesSet.add(handle[1])
-            }
-            val nextHandles = ArrayList(nextHandlesSet)
-            if (nextHandles[0].isTerminal) {
-                cores.add(CoreTensor(2, currHandles.size, 1))
-                for ((currIdx, currHandle) in currHandles.withIndex()) {
-                    if (!currHandle[0].isTerminalZero)
-                        cores.last()[0][currIdx, 0] = 1.0
-                    if (!currHandle[1].isTerminalZero)
-                        cores.last()[1][currIdx, 0] = 1.0
-                }
-            } else {
-                cores.add(CoreTensor(2, currHandles.size, nextHandles.size))
-                for ((currIdx, currHandle) in currHandles.withIndex()) {
-                    for ((nextIdx, nextHandle) in nextHandles.withIndex()) {
-                        if (currHandle[0] == nextHandle)
-                            cores.last()[0][currIdx, nextIdx] = 1.0
-                        if (currHandle[1] == nextHandle)
-                            cores.last()[1][currIdx, nextIdx] = 1.0
-                    }
-                }
-            }
-            currHandles = nextHandles
-        }
-        val stateMaskVector = TTVector(TensorTrain(cores))
-        stateMaskVector.tt.roundRelative(0.0)
-        return stateMaskVector
     }
 }
