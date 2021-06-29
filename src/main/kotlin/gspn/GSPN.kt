@@ -1,5 +1,6 @@
 package gspn
 
+import MDDExtensions.BCompaction
 import MDDExtensions.GSCompaction
 import MDDExtensions.toTensorTrain
 import gspn.rateexpressions.Constant
@@ -101,6 +102,53 @@ class GSPN(val places: ArrayList<Place>, val transitions: ArrayList<Transition>)
                     else variableOrder.createBelow(last, MddVariableDescriptor.create(place.name, place.capacity + 1))
         }
         return variableOrder
+    }
+
+
+    fun getRateMatrixCompacted(
+            variableOrder: MddVariableOrder = getVariableOrder(),
+            dontCareOnUnreachable: Boolean = false
+    ): TTSquareMatrix? {
+        //TODO: compaction only works with BDDs for now, so this works only with binary places
+        computeCapacities()
+        val reachableMdd = stateSpace.reachableStatesRoot().toDelta(variableOrder)
+        val pmax = transitions.filterIsInstance<ImmediateTransition>().map(ImmediateTransition::priority).max() ?: 0
+        val pmdds = (1..pmax).map { stateSpace.calculatePriority(it).toDelta(variableOrder) }.toMutableList()
+        pmdds.add(0, stateSpace.calculateTangible().toDelta(variableOrder))
+
+        var R: TTSquareMatrix? =  null
+        for (t in transitions) {
+            val pmdd = pmdds[if(t is ImmediateTransition) t.priority else 0]
+            var fireableMdd =
+                    MddBuilder<Boolean>(variableOrder.createSignatureFromVariables(listOf())).build(arrayOf(), true)
+            for(p in places) {
+                val inp = t.inputs.find { it.place==p }
+                val min =
+                        if(inp == null) 0
+                        else if(inp is Arc.ConstantArc) inp.value
+                        else throw RuntimeException("Unsupported arc type: ${inp.javaClass.name}")
+                val inhib = t.inhibitors.find { it.place==p }
+                val max =
+                        if(inhib == null) p.capacity+1
+                        else if (inhib is Arc.ConstantArc) inhib.value
+                        else throw RuntimeException("Unsupported arc type: ${inhib.javaClass.name}")
+                if(inp != null || inhib != null) {
+                    val placeMdd =
+                            MddBuilder<Boolean>(variableOrder.createSignatureFromTraceInfos(listOf(p.name)))
+                                    .build((min until max).map{arrayOf(it)}, true)
+                    fireableMdd = fireableMdd.intersection(placeMdd)
+                }
+            }
+            val maskMdd = BCompaction.apply(
+                    pmdd,
+                    if(dontCareOnUnreachable) fireableMdd.intersection(reachableMdd) else variableOrder.defaultSetSignature.project(fireableMdd)
+            )
+            val M_t = TTSquareMatrix.diag(TTVector(maskMdd.toTensorTrain()))
+            val R_t = M_t * t.toTT(variableOrder, places)
+            if(R == null) R = R_t
+            else R.plusAssign(R_t)
+        }
+        return R
     }
 
     fun getRateMatrix(
@@ -266,7 +314,7 @@ class GSPN(val places: ArrayList<Place>, val transitions: ArrayList<Transition>)
         val timeRateEnd = System.currentTimeMillis()
         if (verbose) println("Rate matrix computation time: ${timeRateEnd - timeStart}")
         if (verbose) println("Rounding rate matrix, original largest rank: ${rateMatrix.ttRanks().max()}")
-//        rateMatrix.tt.roundAbsolute(1e-14)
+        rateMatrix.tt.roundAbsolute(1e-12)
         val timeRoundingEnd = System.currentTimeMillis()
         if (verbose) println("Rounding time: ${timeRoundingEnd - timeRateEnd} \nRounded largest rank: ${rateMatrix.ttRanks().max()}")
         if (verbose) println("Computing steady state")
@@ -448,14 +496,18 @@ class GSPN(val places: ArrayList<Place>, val transitions: ArrayList<Transition>)
         val tangibleMaskVector = TTVector(stateSpace.calculateTangible().toDelta(varOrder).toTensorTrain())
         val initialStateVector = getInitialStateVectorAsTT()
 
-        val meanTimeVector = AMEnALSSolve(
-                A = modifiedGeneratorCores.toTypedArray<Abstract2DCoreTensor>(),
+        val reachableStatesMdd = stateSpace.reachableStatesRoot().toDelta(varOrder)
+        val meanTimeVector = ConstrainedAMEnSolver.solve(
+                A = modifiedGeneratorCores.map{it.transpose()}.toTypedArray<Abstract2DCoreTensor>(),
                 y = initialStateVector,
 //                x0 = initialStateVector,
                 residualThreshold = 1e-8,
+                residDamp = 1e-5,
                 maxSweeps = 100,
                 enrichmentRank = enrichmentRank,
-                normalize = false
+                normalize = false,
+                constraintCores = TTVector(reachableStatesMdd.toTensorTrain()),
+                statesForEnumeratedResidualComputation = reachableStatesMdd
         ).solution
         return meanTimeVector * tangibleMaskVector
     }
@@ -554,7 +606,7 @@ class GSPN(val places: ArrayList<Place>, val transitions: ArrayList<Transition>)
                     modifiedGeneratorCores.size - 1 -> CoreTensorPosition.LAST
                     else -> CoreTensorPosition.MIDDLE
                 }
-                modifiedGeneratorCores[k] = modifiedGeneratorCores[k].plus(origAbsorbCore, pos).transpose()
+                modifiedGeneratorCores[k] = modifiedGeneratorCores[k].plus(origAbsorbCore, pos)
             }
         }
         return modifiedGeneratorCores
