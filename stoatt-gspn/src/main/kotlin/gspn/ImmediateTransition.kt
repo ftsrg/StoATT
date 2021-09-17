@@ -25,11 +25,11 @@ import solver.TTVector
 import solver.TensorTrain
 
 class ImmediateTransition(
-        name: String,
-        inputs: ArrayList<Arc>,
-        outputs: ArrayList<Arc>,
-        inhibitors: ArrayList<Arc>,
-        val priority: Int
+    name: String,
+    inputs: ArrayList<Arc>,
+    outputs: ArrayList<Arc>,
+    inhibitors: ArrayList<Arc>,
+    val priority: Int
 ) : Transition(name, inputs, outputs, inhibitors) {
     override fun toTT(varOrder: MddVariableOrder, places: ArrayList<Place>): TTSquareMatrix {
         val rateVector = TTVector.ones(places.map { it.capacity+1 }.toTypedArray())

@@ -21,18 +21,20 @@ package cli
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.subcommands
 
-class TTReliabilityTool : CliktCommand() {
+class StoATT : CliktCommand() {
+    override fun run() = Unit
+}
+class sft : CliktCommand() {
+    override fun run() = Unit
+}
+
+class gspn : CliktCommand() {
     override fun run() = Unit
 }
 
 fun main(args: Array<String>) =
-        TTReliabilityTool()
-                .subcommands(
-                        Gen(),
-                        Calc(),
-                        GSPN().subcommands(
-                            Kanban(),
-                            FromPNPRO()
-                        )
-                ).main(args)
+        StoATT().subcommands(
+            sft().subcommands(Gen(), Calc()),
+            gspn().subcommands(Kanban(), FromPNPRO())
+        ).main(args)
 

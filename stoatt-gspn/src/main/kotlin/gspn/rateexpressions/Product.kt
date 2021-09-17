@@ -65,7 +65,7 @@ class Product(val terms: List<RateExpression>) : RateExpression() {
             }
             return@map core
         }.toMutableList()
-        val c = terms.filterIsInstance<Constant>().fold(1.0) {acc, next -> acc * next.value}
+        val c = terms.filterIsInstance<Constant>().fold(1.0) { acc, next -> acc * next.value}
         return TTVector(TensorTrain(ArrayList(cores))) * c
     }
 

@@ -33,10 +33,6 @@ import solver.TTVector
 import solver.product
 import kotlin.random.Random
 
-class GSPN: CliktCommand() {
-    override fun run() = Unit
-}
-
 class Kanban: CliktCommand() {
     val N by argument().int().restrictTo(min = 1)
     val random by option().flag(default = false)

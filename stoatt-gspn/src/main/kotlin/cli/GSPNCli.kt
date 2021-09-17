@@ -16,9 +16,18 @@
  *
  */
 
-package sacn
+package cli
 
-import sacn.markingfunctions.MarkingFunction
+import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.subcommands
 
-class OutputGate(val outputPlaces: ArrayList<Place>, val outputFunction: Map<Place, MarkingFunction>) {
+class GSPNCli : CliktCommand() {
+    override fun run() = Unit
 }
+
+fun main(args: Array<String>) =
+    GSPNCli()
+        .subcommands(
+            Kanban(),
+            FromPNPRO()
+        ).main(args)

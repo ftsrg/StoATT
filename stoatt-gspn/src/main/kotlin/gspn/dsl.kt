@@ -62,10 +62,10 @@ object PetriNet {
 operator fun RateExpression.plus(d: Double) = this + Constant(d)
 operator fun Double.plus(r: RateExpression) = r + Constant(this)
 operator fun RateExpression.minus(d: Double) = this + Constant(-d)
-operator fun RateExpression.times(d: Double) = this*Constant(d)
+operator fun RateExpression.times(d: Double) = this* Constant(d)
 operator fun Double.times(r: RateExpression) = r*this
-operator fun Double.times(place: Place) = this*PlaceRef(place)
-operator fun Place.times(d: Double) = PlaceRef(this)*d
+operator fun Double.times(place: Place) = this* PlaceRef(place)
+operator fun Place.times(d: Double) = PlaceRef(this) *d
 operator fun RateExpression.times(place: Place)  = this * PlaceRef(place)
 fun arc(place: Place, weight: Int = 1) = Arc.ConstantArc(place, weight)
 fun reset(place: Place, resetTo: Int) = Arc.ResetArc(place, resetTo)

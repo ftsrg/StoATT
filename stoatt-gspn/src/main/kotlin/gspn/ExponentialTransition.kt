@@ -25,11 +25,11 @@ import solver.TTSquareMatrix
 import solver.TensorTrain
 
 class ExponentialTransition(
-        name: String,
-        inputs: ArrayList<Arc>,
-        outputs: ArrayList<Arc>,
-        inhibitors: ArrayList<Arc>,
-        val rate: RateExpression
+    name: String,
+    inputs: ArrayList<Arc>,
+    outputs: ArrayList<Arc>,
+    inhibitors: ArrayList<Arc>,
+    val rate: RateExpression
 ) : Transition(name, inputs, outputs, inhibitors) {
 
     override fun toTT(varOrder: MddVariableOrder, places: ArrayList<Place>): TTSquareMatrix {

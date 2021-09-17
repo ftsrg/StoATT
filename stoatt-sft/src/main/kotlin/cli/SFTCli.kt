@@ -16,7 +16,18 @@
  *
  */
 
-package sacn.markingfunctions
+package cli
 
-abstract class MarkingFunction {
+import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.subcommands
+
+class SFTCli : CliktCommand() {
+    override fun run() = Unit
 }
+
+fun main(args: Array<String>) =
+    SFTCli()
+        .subcommands(
+            Gen(),
+            Calc()
+        ).main(args)

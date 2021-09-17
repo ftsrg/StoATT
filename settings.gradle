@@ -1,4 +1,4 @@
-rootProject.name = 'SToATT'
+rootProject.name = 'StoATT'
 
 includeBuild '/delta/hu.bme.mit.delta.collections'
 includeBuild '/delta/hu.bme.mit.delta'
