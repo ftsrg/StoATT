@@ -1,4 +1,8 @@
-rootProject.name = 'TTReliabilityTool'
+rootProject.name = 'SToATT'
 
 includeBuild '/delta/hu.bme.mit.delta.collections'
 includeBuild '/delta/hu.bme.mit.delta'
+
+includeBuild 'stoatt-core'
+includeBuild 'stoatt-sft'
+includeBuild 'stoatt-gspn'
