@@ -33,11 +33,11 @@ toplevel "System";
 "LG_G" lambda=5.0;
 "LG_B" lambda=5.0;
 
-"IO0_Controller_R" lambda=7.0;
-"IO0_Controller_G" lambda=7.0;
-"IO0_Controller_B" lambda=7.0;
-"IO0_VoterA" lambda=2.0;
-"IO0_VoterB" lambda=2.0;
+"IO0_Controller_R" lambda=12.75e-4 dorm=0;
+"IO0_Controller_G" lambda=7.0 dorm=0;
+"IO0_Controller_B" lambda=7.0 dorm=0;
+"IO0_VoterA" lambda=2.0 dorm=0;
+"IO0_VoterB" lambda=2.0 dorm=0;
 
 "IO1_Controller_R" lambda=7.0;
 "IO1_Controller_G" lambda=7.0;

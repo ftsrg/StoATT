@@ -63,13 +63,15 @@ fun jacobiPreconditioner(A: TTSquareMatrix, zeroMaskVector: TTVector): TTSquareM
     return TTSquareMatrix.diag(inv)
 }
 
-fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: Double, zeroMaskVector: TTVector = TTVector.ones(A.modes), log: Boolean = false): TTSolution {
+fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: Double, zeroMaskVector: TTVector = TTVector.ones(
+    A.modes
+), log: Boolean = false): TTSolution {
     for ((idx, mode) in A.modes.withIndex()) {
         require(mode == b.modes[idx]) { "The modes of A and b must be identical!" }
     }
     val D = A.diagVect()
     val Dinv = TTSquareMatrix.diag(
-            NSInvertVect(D, thresh * D.norm(), thresh / 10, zeroMaskVector)
+        NSInvertVect(D, thresh * D.norm(), thresh / 10, zeroMaskVector)
     )
     val R = A - A.diag()
     var x = TTVector.zeros(A.modes)
@@ -87,28 +89,28 @@ fun TTJacobi(A: TTSquareMatrix, b: TTVector, thresh: Double, roundingAccuracy: D
 }
 
 fun TTReGMRES(
-        preconditioner: TTSquareMatrix?,
-        A: TTSquareMatrix,
-        b: TTVector,
-        x0: TTVector,
-        relativeResThresold: Double,
-        maxInnerIter: Int = 5,
-        maxOuterIter: Int = 100,
-        verbose: Boolean = false,
-        approxSpectralRadius: Double = 1.0): TTSolution =
+    preconditioner: TTSquareMatrix?,
+    A: TTSquareMatrix,
+    b: TTVector,
+    x0: TTVector,
+    relativeResThresold: Double,
+    maxInnerIter: Int = 5,
+    maxOuterIter: Int = 100,
+    verbose: Boolean = false,
+    approxSpectralRadius: Double = 1.0): TTSolution =
         TTReGMRES(if (preconditioner == null) { v: TTVector -> A * v } else { v: TTVector -> preconditioner * (A * v) },
                 b, x0, relativeResThresold, maxInnerIter, maxOuterIter, verbose, approxSpectralRadius)
 
 fun TTReGMRES(
-        linearMap: (TTVector) -> TTVector,
-        b: TTVector,
-        x0: TTVector,
-        relativeResThresold: Double,
-        maxInnerIter: Int = 5,
-        maxOuterIter: Int = 100,
-        verbose: Boolean = false,
-        approxSpectralRadius: Double = 1.0,
-        normalize: Boolean = false
+    linearMap: (TTVector) -> TTVector,
+    b: TTVector,
+    x0: TTVector,
+    relativeResThresold: Double,
+    maxInnerIter: Int = 5,
+    maxOuterIter: Int = 100,
+    verbose: Boolean = false,
+    approxSpectralRadius: Double = 1.0,
+    normalize: Boolean = false
 ): TTSolution {
     val residualThreshold = b.norm() * relativeResThresold
     var x = x0.copy()
@@ -128,21 +130,21 @@ fun TTReGMRES(
 }
 
 fun TTGMRES(
-        preconditioner: TTSquareMatrix,
-        A: TTSquareMatrix, b: TTVector, x0: TTVector,
-        eps: Double, maxIter: Int = 100
+    preconditioner: TTSquareMatrix,
+    A: TTSquareMatrix, b: TTVector, x0: TTVector,
+    eps: Double, maxIter: Int = 100
 ): TTSolution = TTGMRES({ preconditioner * (A * it) }, preconditioner * b, x0, eps, maxIter) //TODO: change eps based on preconditioning
 
 fun TTGMRES(
-        A: TTSquareMatrix, b: TTVector, x0: TTVector,
-        eps: Double, maxIter: Int = 100,
-        verbose: Boolean = false
+    A: TTSquareMatrix, b: TTVector, x0: TTVector,
+    eps: Double, maxIter: Int = 100,
+    verbose: Boolean = false
 ): TTSolution = TTGMRES(A::times, b, x0, eps, maxIter, verbose)
 
 fun TTGMRES(
-        linearMap: (TTVector) -> TTVector,
-        b: TTVector, x0: TTVector,
-        eps: Double, maxIter: Int = 100, verbose: Boolean = false): TTSolution {
+    linearMap: (TTVector) -> TTVector,
+    b: TTVector, x0: TTVector,
+    eps: Double, maxIter: Int = 100, verbose: Boolean = false): TTSolution {
     // Reference for the algorithm:
     // S. V. DOLGOV - TT-GMRES: on solution to a linear system in the structured tensor format
     val res0 = b - linearMap(x0)
@@ -223,12 +225,12 @@ private fun solveWithRots(H: SimpleMatrix, beta: Double): MatSolution {
 }
 
 fun ALSSolve(
-        A: TTSquareMatrix,
-        f: TTVector,
-        ranks: Array<Int>,
-        random: Random,
-        residualThreshold: Double,
-        maxSweeps: Int
+    A: TTSquareMatrix,
+    f: TTVector,
+    ranks: Array<Int>,
+    random: Random,
+    residualThreshold: Double,
+    maxSweeps: Int
 ): TTSolution = ALSSolve(
         A, f,
         TTVector.rand(A.modes, ranks, random = random),
@@ -236,13 +238,13 @@ fun ALSSolve(
 )
 
 fun ALSSolve(
-        A: TTSquareMatrix,
-        f: TTVector,
-        x0: TTVector = TTVector.ones(f.modes),
-        residualThreshold: Double,
-        maxSweeps: Int,
-        maxLocalIters: Int = 200,
-        normalize: Boolean = false
+    A: TTSquareMatrix,
+    f: TTVector,
+    x0: TTVector = TTVector.ones(f.modes),
+    residualThreshold: Double,
+    maxSweeps: Int,
+    maxLocalIters: Int = 200,
+    normalize: Boolean = false
 ): TTSolution {
     // Reference for the algorithm:
     // I. V. OSELEDETS AND S. V. DOLGOV - Solution of Linear Systems and Matrix Inversion in the TT-Format
@@ -281,15 +283,15 @@ fun ALSSolve(
 }
 
 private fun applyALSStep(
-        A: TTSquareMatrix,
-        x: TTVector,
-        f: TTVector,
-        k: Int,
-        psiCache: Array<Array<Array<SimpleMatrix>>?>,
-        phiCache: Array<Array<Array<SimpleMatrix>>?>,
-        residualThreshold: Double,
-        maxLocalIters: Int = 200,
-        normalize: Boolean = false
+    A: TTSquareMatrix,
+    x: TTVector,
+    f: TTVector,
+    k: Int,
+    psiCache: Array<Array<Array<SimpleMatrix>>?>,
+    phiCache: Array<Array<Array<SimpleMatrix>>?>,
+    residualThreshold: Double,
+    maxLocalIters: Int = 200,
+    normalize: Boolean = false
 ) {
     val currCore = x.tt.cores[k]
     //TODO: parallel computation of elements
@@ -497,16 +499,16 @@ private fun applyALSStep(
 }
 
 private fun ALSLocalIterSolve(
-        psi: Array<Array<SimpleMatrix>>,
-        phi: Array<Array<SimpleMatrix>>,
-        A: TTSquareMatrix,
-        w0: SimpleMatrix,
-        F: SimpleMatrix,
-        k: Int,
-        threshold: Double,
-        preconditioner: SimpleMatrix? = null,
-        maxLocalIters: Int = 200,
-        normalizerVector: SimpleMatrix? = null
+    psi: Array<Array<SimpleMatrix>>,
+    phi: Array<Array<SimpleMatrix>>,
+    A: TTSquareMatrix,
+    w0: SimpleMatrix,
+    F: SimpleMatrix,
+    k: Int,
+    threshold: Double,
+    preconditioner: SimpleMatrix? = null,
+    maxLocalIters: Int = 200,
+    normalizerVector: SimpleMatrix? = null
 ): SimpleMatrix {
     val r_k = phi.size
     val r_kminus = psi.size
@@ -609,15 +611,15 @@ private fun ALSLocalIterSolve(
 }
 
 fun DMRGSolve(
-        A: TTSquareMatrix,
-        f: TTVector,
-        x0: TTVector = TTVector.ones(f.modes),//, Array(f.modes.size+1) {1}),
-        absoluteResidualThreshold: Double,
-        maxSweeps: Int,
-        truncationRelativeThreshold: Double = 0.0,
-        verbose: Boolean = false,
-        maxLocalIters: Int = 100,
-        normalize: Boolean = false
+    A: TTSquareMatrix,
+    f: TTVector,
+    x0: TTVector = TTVector.ones(f.modes),//, Array(f.modes.size+1) {1}),
+    absoluteResidualThreshold: Double,
+    maxSweeps: Int,
+    truncationRelativeThreshold: Double = 0.0,
+    verbose: Boolean = false,
+    maxLocalIters: Int = 100,
+    normalize: Boolean = false
 ): TTSolution {
     // Reference for the algorithm:
     // I. V. OSELEDETS AND S. V. DOLGOV - Solution of Linear Systems and Matrix Inversion in the TT-Format
@@ -780,13 +782,13 @@ fun DMRGSolve(
 }
 
 fun DMRGInvert(
-        A: TTSquareMatrix,
-        maxSweeps: Int,
-        initialGuess: TTVector? = null,
-        verbose: Boolean = false,
-        truncationRelativeThreshold: Double,
-        preconditioner: TTSquareMatrix? = null,
-        maxLocalIters: Int = 200
+    A: TTSquareMatrix,
+    maxSweeps: Int,
+    initialGuess: TTVector? = null,
+    verbose: Boolean = false,
+    truncationRelativeThreshold: Double,
+    preconditioner: TTSquareMatrix? = null,
+    maxLocalIters: Int = 200
 ): TTSquareMatrix {
     val extendedCores = arrayListOf<CoreTensor>()
     for ((coreIdx, origCore) in A.tt.cores.withIndex()) {
@@ -826,14 +828,14 @@ fun DMRGInvert(
 //}
 
 fun AMEnSolve(
-        A: TTSquareMatrix,
-        y: TTVector,
-        x0: TTVector = TTVector.ones(y.modes),
-        residualThreshold: Double,
-        maxSweeps: Int,
-        enrichmentRank: Int,
-        normalize: Boolean = false,
-        verbose: Boolean = true
+    A: TTSquareMatrix,
+    y: TTVector,
+    x0: TTVector = TTVector.ones(y.modes),
+    residualThreshold: Double,
+    maxSweeps: Int,
+    enrichmentRank: Int,
+    normalize: Boolean = false,
+    verbose: Boolean = true
 //        enrichmentMethod: AmenEnrichmentMethod = AmenEnrichmentMethod.SVD
 ): TTSolution {
     val relativeThreashold = residualThreshold / y.norm()

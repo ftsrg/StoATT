@@ -28,7 +28,7 @@ import com.github.ajalt.clikt.parameters.types.choice
 import com.github.ajalt.clikt.parameters.types.double
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.clikt.parameters.types.restrictTo
-import faulttree.galileoParser
+import faulttree.*
 import solver.*
 import solver.solvers.AMEnALSSolve
 import java.io.FileInputStream

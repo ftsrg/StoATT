@@ -161,15 +161,3 @@ fun SimpleMatrix.roundZeros(threshold: Double = 1E-14) {
         }
     }
 }
-
-fun <R> MddHandle.mapTuples(f: (List<Int>) -> R): List<R> {
-    fun mapTuplesHelper(prefix: List<Int>, node: MddHandle): List<R>  {
-        if(node.isTerminalZero) return listOf()
-        if(node.isTerminal) return listOf(f(prefix))
-        val res = arrayListOf<R>()
-        for(i in 0 until this.variableHandle.variable.get().domainSize)
-            res.addAll(mapTuplesHelper(prefix + i, node[i]))
-        return res
-    }
-    return mapTuplesHelper(listOf(), this)
-}

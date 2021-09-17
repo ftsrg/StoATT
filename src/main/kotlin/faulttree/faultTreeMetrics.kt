@@ -16,16 +16,16 @@
  *
  */
 
-package solver
+package faulttree
 
 import faulttree.BasicEvent.Companion.BasicEventVar
-import faulttree.FaultTree
 import faulttree.PHBasicEvent.Companion.PHEventVar
+import solver.*
 
-fun FaultTree.mtff(relativeThreshold: Double, solver: (TTSquareMatrix, TTVector, threshold: Double)->TTSolution) =
+fun FaultTree.mtff(relativeThreshold: Double, solver: (TTSquareMatrix, TTVector, threshold: Double)-> TTSolution) =
         getNthMoment(1, relativeThreshold, solver)
 
-fun FaultTree.getNthMoment(n: Int, relativeThreshold: Double, solver: (TTSquareMatrix, TTVector, threshold: Double)->TTSolution): Double {
+fun FaultTree.getNthMoment(n: Int, relativeThreshold: Double, solver: (TTSquareMatrix, TTVector, threshold: Double)-> TTSolution): Double {
 
     val variables = this.getOrderedVariables()
     val pi0Cores = Array(variables.size) {
@@ -50,7 +50,7 @@ fun FaultTree.getNthMoment(n: Int, relativeThreshold: Double, solver: (TTSquareM
     return (if(n % 2 == 0) 1 else -1) * (left * right)
 }
 
-fun FaultTree.getNthMomentSparse(n: Int, relativeThreshold: Double, solver: (Array<Sparse2DCoreTensor>, TTVector, threshold: Double)->TTSolution): Double {
+fun FaultTree.getNthMomentSparse(n: Int, relativeThreshold: Double, solver: (Array<Sparse2DCoreTensor>, TTVector, threshold: Double)-> TTSolution): Double {
 
     val variables = this.getOrderedVariables()
     val pi0Cores = Array(variables.size) {

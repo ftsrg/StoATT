@@ -31,7 +31,7 @@ import hu.bme.mit.inf.turnout.petrinet.Reset
 import hu.bme.mit.inf.turnout.petrinet.`NoEffect$`
 import hu.bme.mit.inf.turnout.petrinet.saturation.StateSpaceExplorer
 import hu.bme.mit.inf.turnout.symbolic.diagram.Mdd
-import mapTuples
+import MDDExtensions.mapTuples
 import org.ejml.data.DMatrixSparseCSC
 import org.ejml.data.DMatrixSparseTriplet
 import org.ejml.ops.ConvertDMatrixStruct
@@ -181,7 +181,8 @@ class GSPN(val places: ArrayList<Place>, val transitions: ArrayList<Transition>)
         var p0mdd = stateSpace.calculateTangible().toDelta(variableOrder)
         if (useCompaction) p0mdd = GSCompaction.apply(p0mdd, reachableMdd)
         val p0mask: TTSquareMatrix = TTSquareMatrix.diag(TTVector(p0mdd.toTensorTrain()))
-        val R0 = transitions.filterIsInstance<ExponentialTransition>().map { it.toTT(variableOrder, places) }.reduce(TTSquareMatrix::plus)
+        val R0 = transitions.filterIsInstance<ExponentialTransition>().map { it.toTT(variableOrder, places) }.reduce(
+            TTSquareMatrix::plus)
         val res: TTSquareMatrix = p0mask * R0
         res.tt.roundAbsolute(0.0)
         if (tolerancePerTerm > 0.0)
@@ -211,7 +212,8 @@ class GSPN(val places: ArrayList<Place>, val transitions: ArrayList<Transition>)
         val reachableMdd = stateSpace.reachableStatesRoot().toDelta(variableOrder)
         var p0mdd = stateSpace.calculateTangible().toDelta(variableOrder)
         if (useCompaction) p0mdd = GSCompaction.apply(p0mdd, reachableMdd)
-        val R0 = transitions.filterIsInstance<ExponentialTransition>().map { it.toTT(variableOrder, places) }.reduce(TTSquareMatrix::plus)
+        val R0 = transitions.filterIsInstance<ExponentialTransition>().map { it.toTT(variableOrder, places) }.reduce(
+            TTSquareMatrix::plus)
         var currMddNodes = listOf(p0mdd)
         var nextMddNodes = Array(p0mdd.variableHandle.variable.get().domainSize) { p0mdd[it] }.toSet().toList()
         val res = Array(places.size) { k ->

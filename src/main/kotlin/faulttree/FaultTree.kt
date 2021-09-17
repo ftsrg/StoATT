@@ -136,7 +136,7 @@ class FaultTree(val topNode: FaultTreeNode) {
      */
     fun getBaseGenerator(): TTSquareMatrix {
         val Mpre = getBaseRateMatrix()
-        return Mpre-TTSquareMatrix.diag(Mpre*TTVector.ones(Mpre.modes))
+        return Mpre- TTSquareMatrix.diag(Mpre* TTVector.ones(Mpre.modes))
     }
 
     /**
@@ -191,7 +191,7 @@ class FaultTree(val topNode: FaultTreeNode) {
                 core.data[i] = core.data[i] / core.modeLength.toDouble()
             }
         }
-        val meanExitRate=-(D*TTVector.ones(D.modes))
+        val meanExitRate=-(D* TTVector.ones(D.modes))
         // TODO: PAND and SPARE might introduce new absorbing states in the original Markov chain
         val origAbsorbingIndicatorVector = getStrictAbsorbingIndicatorVector()
         val failureIndicatorVector = TTVector.ones(stateMaskVector.modes) - stateMaskVector

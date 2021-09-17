@@ -55,7 +55,7 @@ class FromPNPRO : CliktCommand() {
             )
         }
 
-        println("Just a test for the distribution: ${ss*TTVector.ones(ss.modes)}")
+        println("Just a test for the distribution: ${ss* TTVector.ones(ss.modes)}")
     }
 
 }

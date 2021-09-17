@@ -19,7 +19,7 @@
 package solver.solvers
 
 import hu.bme.mit.delta.mdd.MddHandle
-import mapTuples
+import MDDExtensions.mapTuples
 import org.ejml.data.SingularMatrixException
 import org.ejml.simple.SimpleMatrix
 import solver.*
@@ -33,22 +33,22 @@ object ConstrainedAMEnSolver {
     // Quick non-optimized prototype
     // based on the amen_solve2 function of the TT matlab toolbox
     fun solve(
-            A: Array<Abstract2DCoreTensor>,
-            y: TTVector,
-            x0: TTVector = TTVector.ones(y.modes),
-            residualThreshold: Double,
-            maxSweeps: Int,
-            enrichmentRank: Int,
-            normalize: Boolean = false,
-            verbose: Boolean = true,
-            residDamp: Double = 1e-3,
-            truncateBasedOnResidual: Boolean = true,
-            useApproxResidualForStopping: Boolean = false,
-            z0: TTVector? = null,
-            reachableStateSpaceIndicator: TTVector? = null,
-            constraintCores: TTVector,
-            AForResidual: Array<Abstract2DCoreTensor> = A,
-            statesForEnumeratedResidualComputation: MddHandle? = null
+        A: Array<Abstract2DCoreTensor>,
+        y: TTVector,
+        x0: TTVector = TTVector.ones(y.modes),
+        residualThreshold: Double,
+        maxSweeps: Int,
+        enrichmentRank: Int,
+        normalize: Boolean = false,
+        verbose: Boolean = true,
+        residDamp: Double = 1e-3,
+        truncateBasedOnResidual: Boolean = true,
+        useApproxResidualForStopping: Boolean = false,
+        z0: TTVector? = null,
+        reachableStateSpaceIndicator: TTVector? = null,
+        constraintCores: TTVector,
+        AForResidual: Array<Abstract2DCoreTensor> = A,
+        statesForEnumeratedResidualComputation: MddHandle? = null
     ): TTSolution {
         val phiA = Array(A.size + 1) { listOf(listOf(ones(1))) }
         val phiy = Array(A.size + 1) { listOf(listOf(ones(1))) }
@@ -311,10 +311,10 @@ object ConstrainedAMEnSolver {
     }
 
     private fun computeKroneckeredXTX(
-            lowRankRepLeft: TTVector,
-            lowRankRepRight: TTVector,
-            kroneckerCores: List<CoreTensor>,
-            k: Int
+        lowRankRepLeft: TTVector,
+        lowRankRepRight: TTVector,
+        kroneckerCores: List<CoreTensor>,
+        k: Int
     ): SimpleMatrix {
         var left = ones(1, 1)
         for (c in 0 until k) {
@@ -364,12 +364,12 @@ object ConstrainedAMEnSolver {
     }
 
     private fun computePsi(
-            PsiPrev: TPhi,
-            xCore: CoreTensor,
-            AbstractACore: Abstract2DCoreTensor,
-            yCore: CoreTensor,
-            xKroneckerConstraintCore: CoreTensor,
-            yKroneckerConstraintCore: CoreTensor
+        PsiPrev: TPhi,
+        xCore: CoreTensor,
+        AbstractACore: Abstract2DCoreTensor,
+        yCore: CoreTensor,
+        xKroneckerConstraintCore: CoreTensor,
+        yKroneckerConstraintCore: CoreTensor
     ): TPhi {
         val res = arrayListOf<ArrayList<SimpleMatrix>>()
         for (beta_1 in 0 until xKroneckerConstraintCore.cols)
@@ -405,12 +405,12 @@ object ConstrainedAMEnSolver {
     }
 
     private fun computePhi(
-            PhiPrev: TPhi,
-            xCore: CoreTensor,
-            AbstractACore: Abstract2DCoreTensor,
-            yCore: CoreTensor,
-            xKroneckerConstraintCore: CoreTensor,
-            yKroneckerConstraintCore: CoreTensor
+        PhiPrev: TPhi,
+        xCore: CoreTensor,
+        AbstractACore: Abstract2DCoreTensor,
+        yCore: CoreTensor,
+        xKroneckerConstraintCore: CoreTensor,
+        yKroneckerConstraintCore: CoreTensor
     ): TPhi {
         val res = arrayListOf<ArrayList<SimpleMatrix>>()
         for (beta_1 in 0 until xKroneckerConstraintCore.rows) {
@@ -446,11 +446,11 @@ object ConstrainedAMEnSolver {
     }
 
     private fun computePsi(
-            PsiPrev: TPhi,
-            xCore: CoreTensor,
-            yCore: CoreTensor,
-            xKroneckerConstraintCore: CoreTensor,
-            yKroneckerConstraintCore: CoreTensor
+        PsiPrev: TPhi,
+        xCore: CoreTensor,
+        yCore: CoreTensor,
+        xKroneckerConstraintCore: CoreTensor,
+        yKroneckerConstraintCore: CoreTensor
     ): TPhi {
         val res = arrayListOf<ArrayList<SimpleMatrix>>()
         for (beta_1 in 0 until xKroneckerConstraintCore.cols) {
@@ -484,11 +484,11 @@ object ConstrainedAMEnSolver {
     }
 
     private fun computePhi(
-            PhiPrev: TPhi,
-            xCore: CoreTensor,
-            yCore: CoreTensor,
-            xKroneckerConstraintCore: CoreTensor,
-            yKroneckerConstraintCore: CoreTensor
+        PhiPrev: TPhi,
+        xCore: CoreTensor,
+        yCore: CoreTensor,
+        xKroneckerConstraintCore: CoreTensor,
+        yKroneckerConstraintCore: CoreTensor
     ): TPhi {
         val res = arrayListOf<ArrayList<SimpleMatrix>>()
         for (beta_1 in 0 until xKroneckerConstraintCore.rows) {
@@ -543,12 +543,12 @@ object ConstrainedAMEnSolver {
 
     //Phi1[beta][gamma] row vector, Phi2[beta][gamma] col vector
     private fun projectMatVec(
-            psi: TPhi,
-            ACore: Abstract2DCoreTensor,
-            phi: TPhi,
-            y: SimpleMatrix,
-            normalizerVector: SimpleMatrix? = null,
-            preconditioner: ((SimpleMatrix) -> SimpleMatrix)? = null
+        psi: TPhi,
+        ACore: Abstract2DCoreTensor,
+        phi: TPhi,
+        y: SimpleMatrix,
+        normalizerVector: SimpleMatrix? = null,
+        preconditioner: ((SimpleMatrix) -> SimpleMatrix)? = null
     ): SimpleMatrix {
         val r_kx = phi.size
         val r_ky = phi[0].size
@@ -641,12 +641,12 @@ object ConstrainedAMEnSolver {
      * as described in the ALS/DMRG paper
      */
     private fun projectMatVecTranspose(
-            psi: TPhi,
-            ACore: Abstract2DCoreTensor,
-            phi: TPhi,
-            y: SimpleMatrix,
-            normalizerVector: SimpleMatrix? = null,
-            preconditioner: ((SimpleMatrix) -> SimpleMatrix)? = null
+        psi: TPhi,
+        ACore: Abstract2DCoreTensor,
+        phi: TPhi,
+        y: SimpleMatrix,
+        normalizerVector: SimpleMatrix? = null,
+        preconditioner: ((SimpleMatrix) -> SimpleMatrix)? = null
     ): SimpleMatrix {
         val lambda = y[y.numElements-1]
         val y = if(normalizerVector == null) y else y[0..y.numElements-1, 0..1]
@@ -677,17 +677,17 @@ object ConstrainedAMEnSolver {
     }
 
     private fun applyALSStepConstrained(
-            A: Array<Abstract2DCoreTensor>,
-            x: TTVector,
-            f: TTVector,
-            k: Int,
-            psi: TPhi,
-            phi: TPhi,
-            kroneckerConstraintVector: TTVector,
-            residualThreshold: Double,
-            maxLocalIters: Int = 200,
-            normalizer: SimpleMatrix? = null,
-            localRhs: SimpleMatrix
+        A: Array<Abstract2DCoreTensor>,
+        x: TTVector,
+        f: TTVector,
+        k: Int,
+        psi: TPhi,
+        phi: TPhi,
+        kroneckerConstraintVector: TTVector,
+        residualThreshold: Double,
+        maxLocalIters: Int = 200,
+        normalizer: SimpleMatrix? = null,
+        localRhs: SimpleMatrix
     ) {
         val kroneckerConstraintCores = kroneckerConstraintVector.tt.cores
         val constrCore = kroneckerConstraintCores[k]
@@ -848,17 +848,17 @@ object ConstrainedAMEnSolver {
     }
 
     private fun ALSLocalIterSolve(
-            psi: TPhi,
-            phi: TPhi,
-            A: Array<Abstract2DCoreTensor>,
-            w0: SimpleMatrix,
-            F: SimpleMatrix,
-            k: Int,
-            threshold: Double,
-            preconditioner: ((SimpleMatrix) -> SimpleMatrix)? = null,
-            maxLocalIters: Int = 200,
-            normalizerVector: SimpleMatrix? = null,
-            kroneckerConstraintMatrix: SimpleMatrix
+        psi: TPhi,
+        phi: TPhi,
+        A: Array<Abstract2DCoreTensor>,
+        w0: SimpleMatrix,
+        F: SimpleMatrix,
+        k: Int,
+        threshold: Double,
+        preconditioner: ((SimpleMatrix) -> SimpleMatrix)? = null,
+        maxLocalIters: Int = 200,
+        normalizerVector: SimpleMatrix? = null,
+        kroneckerConstraintMatrix: SimpleMatrix
     ): SimpleMatrix {
         val r_k = phi.size
         val r_kminus = psi.size

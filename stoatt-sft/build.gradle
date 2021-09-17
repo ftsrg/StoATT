@@ -25,8 +25,15 @@ repositories {
     mavenCentral()
 }
 
+group 'hu.bme.mit.inf.stoatt'
+
 dependencies {
     implementation 'com.github.ajalt:clikt:2.3.0'
     implementation "org.antlr:antlr4-runtime:4.9.1"
-    implementation 'hu.bme.mit.stoatt:stoatt-core'
+    implementation 'hu.bme.mit.inf.stoatt:stoatt-core'
+}
+
+compileJava {
+    sourceCompatibility = 11
+    targetCompatibility = 11
 }

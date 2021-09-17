@@ -5,7 +5,7 @@ plugins {
     id 'com.github.johnrengelman.shadow' version '6.1.0'
 }
 
-apply plugin: 'antlr'
+//apply plugin: 'antlr'
 
 version '1.0-SNAPSHOT'
 
@@ -25,9 +25,13 @@ dependencies {
     compile group: 'org.ejml', name: 'ejml-all', version: '0.39'
     compile "delta:hu.bme.mit.delta: 0.0.1"
     compile "org.antlr:antlr4-runtime:4.9.1"
-    antlr 'org.antlr:antlr4:4.7.2'
     compile 'com.github.ajalt:clikt:2.3.0'
     compile 'hu.bme.mit.inf:turnout-petrinet_2.12:0.1.0-SNAPSHOT'
+
+    implementation 'hu.bme.mit.inf.stoatt:stoatt-core'
+    implementation 'hu.bme.mit.inf.stoatt:stoatt-sft'
+    implementation 'hu.bme.mit.inf.stoatt:stoatt-gspn'
+
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }
 
