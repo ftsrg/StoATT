@@ -24,3 +24,23 @@ problems.
 Run the ```:stoatt-sft:distTar``` or ```:stoatt-sft:distZip``` gradle task to create a tar or ZIP distribution, 
 including an executable and all dependencies. The resulting artifact can be found in the 
 ```stoatt-sft/build/distributions``` directory.
+
+## Paper information
+The implementation is based on the algorithm described in the paper _D. Szekeres, K. Marussy, I. Majzik: Tensor-Based Reliability Analysis of Complex Static Fault Trees_.
+
+The paper is available at [the EDCC 2021 conference website](https://edcc.dependability.org/program.html).
+
+```
+@inproceedings{szekeres2021tensor,
+  title={Tensor-Based Reliability Analysis of Complex Static Fault Trees},
+  author={Szekeres, D\'aniel and Marussy, Krist\'of and Majzik, Istv\'an},
+  booktitle={European Dependable Computing Conference},
+  pages={33--40},
+  year={2021},
+  organization={IEEE},
+  ISBN="978-1-6654-3671-7"
+}
+```
+
+## License
+The project uses the Apache Public License v2.0.
