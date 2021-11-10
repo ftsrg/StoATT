@@ -28,7 +28,7 @@ including an executable and all dependencies. The resulting artifact can be foun
 ## Paper information
 The implementation is based on the algorithm described in the paper _D. Szekeres, K. Marussy, I. Majzik: Tensor-Based Reliability Analysis of Complex Static Fault Trees_.
 
-The paper is available at [the EDCC 2021 conference website](https://edcc.dependability.org/program.html).
+The paper is available at [the EDCC 2021 conference website](https://edcc2021.iks.fraunhofer.de/program.html).
 
 ```
 @inproceedings{szekeres2021tensor,
